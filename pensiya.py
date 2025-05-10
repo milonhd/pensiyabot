@@ -151,6 +151,26 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
+# Добавляем функцию для уведомлений о закрытии доступа
+async def check_access_periodically():
+    while True:
+        current_time = time.time()
+
+        for user_id, expiration_time in list(user_access.items()):
+            if expiration_time < current_time:  # Если срок действия истек
+                # Уведомляем пользователя
+                await bot.send_message(user_id, "❌ Ваш доступ истек.")
+
+                # Уведомляем администратора
+                await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} по тарифу {user_tariffs[user_id]} истёк.")
+
+                # Удаляем пользователя из списка активных
+                del user_access[user_id]
+                user_tariffs.pop(user_id, None)
+
+        # Проверяем каждые 60 секунд
+        await asyncio.sleep(5)
+        
 @dp.callback_query(lambda c: c.data in ["basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
@@ -158,13 +178,6 @@ async def handle_callback(call: types.CallbackQuery):
 
     if user_id in user_access and user_access[user_id] < time.time():
         await call.message.answer("❌ У вас нет активного доступа.")
-        
-        # Уведомление для пользователя, если доступ истёк
-        await bot.send_message(user_id, "❌ Ваш доступ истёк. Обратитесь к администратору для восстановления доступа.")
-        
-        # Уведомление для администратора, если доступ истёк
-        await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} истёк.")
-        return
         
     if data == "basic":
         user_tariffs[user_id] = "basic"
@@ -238,12 +251,7 @@ async def handle_callback(call: types.CallbackQuery):
         if tariff == "pro":
             await call.message.answer("🔗 Ссылка на канал: https://t.me/yourchannel")
         elif tariff == "basic":
-            try:
-                archive = InputFile("materials.zip")
-                await call.message.answer("📦 Вот архив с материалами:")
-                await call.message.answer_document(archive)
-            except Exception as e:
-                await call.message.answer(f"Ошибка при отправке архива: {e}")
+            await call.message.answer("🔗 Ссылка на канал: https://t.me/+9lsuUY_a4xMxMDVi")
         else:
             await call.message.answer("❗ Не удалось определить ваш тариф. Обратитесь в поддержку.")
 
