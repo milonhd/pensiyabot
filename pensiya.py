@@ -73,7 +73,6 @@ async def grant_access(message: types.Message):
         duration = 7 * 24 * 60 * 60 if tariff == "basic" else 30 * 24 * 60 * 60
         user_access[user_id] = time.time() + duration
         user_tariffs[user_id] = tariff
-        
         await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
         await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
     except Exception as e:
