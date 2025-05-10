@@ -220,7 +220,6 @@ async def handle_callback(call: types.CallbackQuery):
         )
         await call.message.answer(offer_text, parse_mode="Markdown")
 
-
  elif data == "get_materials":
     if user_id not in user_access or user_access[user_id] < time.time():
         return await call.message.answer("❌ У вас нет активного доступа.")
