@@ -71,7 +71,7 @@ async def grant_access(message: types.Message):
             return await message.answer("Тариф должен быть 'basic' или 'pro'.")
 
         days = 7 if tariff == "basic" else 30
-        user_access[user_id] = time.time() + 60
+        user_access[user_id] = time.time() + 30
         user_tariffs[user_id] = tariff
         await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
         await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
@@ -150,35 +150,12 @@ async def show_users(message: types.Message):
         for uid, exp in user_access.items() if exp > time.time()
     ]
     await message.answer("\n".join(lines))
-
-# Добавляем функцию для уведомлений о закрытии доступа
-async def check_access_periodically():
-    while True:
-        current_time = time.time()
-
-        for user_id, expiration_time in list(user_access.items()):
-            if expiration_time < current_time:  # Если срок действия истек
-                # Уведомляем пользователя
-                await bot.send_message(user_id, "❌ Ваш доступ истек.")
-
-                # Уведомляем администратора
-                await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} по тарифу {user_tariffs[user_id]} истёк.")
-
-                # Удаляем пользователя из списка активных
-                del user_access[user_id]
-                user_tariffs.pop(user_id, None)
-
-        # Проверяем каждые 60 секунд
-        await asyncio.sleep(5)
         
 @dp.callback_query(lambda c: c.data in ["basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
 
-    if user_id in user_access and user_access[user_id] < time.time():
-        await call.message.answer("❌ У вас нет активного доступа.")
-        
     if data == "basic":
         user_tariffs[user_id] = "basic"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -245,15 +222,12 @@ async def handle_callback(call: types.CallbackQuery):
 
 
     elif data == "get_materials":
-        if user_id not in user_access or user_access[user_id] < time.time():
-            return await call.message.answer("❌ У вас нет активного доступа.")
-        tariff = user_tariffs.get(user_id)
-        if tariff == "pro":
-            await call.message.answer("🔗 Ссылка на канал: https://t.me/yourchannel")
-        elif tariff == "basic":
-            await call.message.answer("🔗 Ссылка на канал: https://t.me/+9lsuUY_a4xMxMDVi")
-        else:
-            await call.message.answer("❗ Не удалось определить ваш тариф. Обратитесь в поддержку.")
+    if user_id not in user_access or user_access[user_id] < time.time():
+        return await call.message.answer("❌ У вас нет активного доступа.")
+    tariff = user_tariffs.get(user_id)
+    link = "https://t.me/+9lsuUY_a4xMxMDVi" if tariff == "basic" else "https://t.me/yourchannel"
+    await call.message.answer(f"🔗 Ссылка на канал: {link}")
+
 
     elif data.startswith("send_screenshot"):
         await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
@@ -273,7 +247,34 @@ async def handle_photo(message: types.Message):
     await bot.send_message(ADMIN_ID, info)
     await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption="Скриншот оплаты")
 
+# 🔁 Проверка доступа каждые 10 сек
+async def check_access_periodically():
+    while True:
+        current_time = time.time()
+        expired_users = [uid for uid, expire_time in user_access.items() if expire_time <= current_time]
+
+        for user_id in expired_users:
+            tariff = user_tariffs.get(user_id, "неизвестно")
+
+            try:
+                await bot.send_message(user_id, "❌ Ваш доступ истёк.")
+            except:
+                logging.warning(f"Не удалось отправить сообщение пользователю {user_id}.")
+
+            try:
+                await bot.send_message(ADMIN_ID, f"⛔️ У пользователя {user_id} истёк доступ по тарифу {tariff}.")
+            except:
+                pass
+
+            # Удаляем доступ
+            user_access.pop(user_id, None)
+            user_tariffs.pop(user_id, None)
+
+        await asyncio.sleep(5)
+
+
 async def main():
+    asyncio.create_task(check_access_periodically())
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
