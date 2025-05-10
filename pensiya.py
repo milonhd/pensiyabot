@@ -220,14 +220,15 @@ async def handle_callback(call: types.CallbackQuery):
         )
         await call.message.answer(offer_text, parse_mode="Markdown")
 
- elif data == "get_materials":
+    elif data == "get_materials":
     if user_id not in user_access or user_access[user_id] < time.time():
         return await call.message.answer("❌ У вас нет активного доступа.")
+    else:
     tariff = user_tariffs.get(user_id)
     link = "https://t.me/+9lsuUY_a4xMxMDVi" if tariff == "basic" else "https://t.me/yourchannel"
     await call.message.answer(f"🔗 Ссылка на канал: {link}")
 
- elif data.startswith("send_screenshot"):
+    elif data.startswith("send_screenshot"):
         await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
 
 @dp.message(lambda msg: msg.photo)
