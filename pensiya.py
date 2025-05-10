@@ -260,8 +260,19 @@ async def check_access_periodically():
             except:
                 logging.warning(f"Не удалось отправить сообщение пользователю {user_id}.")
 
+            # Получаем данные пользователя
             try:
-                await bot.send_message(ADMIN_ID, f"⛔️ У пользователя {user_id} истёк доступ по тарифу {tariff}.")
+                user_info = await bot.get_chat(user_id)
+                username = user_info.username if user_info.username else "неизвестно"
+                full_name = user_info.first_name + (" " + user_info.last_name if user_info.last_name else "")
+            except:
+                username = "неизвестно"
+                full_name = "неизвестно"
+                logging.warning(f"Не удалось получить информацию о пользователе {user_id}.")
+
+            try:
+                # Отправляем информацию админу
+                await bot.send_message(ADMIN_ID, f"⛔️ У пользователя {full_name} (@{username}, ID: {user_id}) истёк доступ по тарифу {tariff}.")
             except:
                 pass
 
