@@ -61,16 +61,17 @@ async def cmd_start(message: types.Message):
 async def grant_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
-    
     args = message.text.split()
     if len(args) < 3:
         return await message.answer("Использование: /g [id] [basic/pro]")
-    
     try:
         user_id = int(args[1])
         tariff = args[2].lower()
         if tariff not in ["basic", "pro"]:
             return await message.answer("Тариф должен быть 'basic' или 'pro'.")
+
+        # Сохраняем тариф пользователя
+        user_tariffs[user_id] = tariff
 
         if tariff == "basic":
             user_access[user_id] = time.time() + 7 * 24 * 60 * 60  # 7 дней
@@ -79,10 +80,12 @@ async def grant_access(message: types.Message):
             user_access[user_id] = time.time() + 30 * 24 * 60 * 60  # 30 дней
             days = 30
 
-        # Эти строки должны быть вне else, чтобы выполнялись независимо от того, какой тариф выбран
         await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
-        await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
-    
+        await bot.send_message(
+            user_id,
+            f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!",
+            reply_markup=materials_keyboard
+        )
     except Exception as e:
         logging.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
