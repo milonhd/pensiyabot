@@ -57,13 +57,13 @@ async def cmd_start(message: types.Message):
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard)
 
 
-@dp.message(Command("grant"))
+@dp.message(Command("g"))
 async def grant_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
     args = message.text.split()
     if len(args) < 3:
-        return await message.answer("Использование: /grant [id] [basic/pro]")
+        return await message.answer("Использование: /g [id] [basic/pro]")
     try:
         user_id = int(args[1])
         tariff = args[2].lower()
@@ -132,7 +132,7 @@ async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
     await message.answer("""
-/grant [id] [basic/pro] - выдать доступ
+/g [id] [basic/pro] - выдать доступ
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
 /users - показать всех с доступом
