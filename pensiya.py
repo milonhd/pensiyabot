@@ -70,13 +70,16 @@ async def grant_access(message: types.Message):
         if tariff not in ["basic", "pro"]:
             return await message.answer("Тариф должен быть 'basic' или 'pro'.")
 
-    if tariff == "basic":
-        user_access[user_id] = time.time() + 7 * 24 * 60 * 60  # 7 дней
+        if tariff == "basic":
+            user_access[user_id] = time.time() + 7 * 24 * 60 * 60  # 7 дней
+            days = 7
         else:
-            user_access[user_id] = time.time() + 30 * 24 * 60 * 60  # 30 дней
+            user_access[user_id] = time.time() + 30 * 24 * 60 * 60  # 30 дней\
+            days = 30
         
-        await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
-        await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
+            await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
+            await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
+    
     except Exception as e:
         logging.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
