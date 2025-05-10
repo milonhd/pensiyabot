@@ -121,20 +121,33 @@ async def revoke_access(message: types.Message):
 async def check_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
+
     args = message.text.split()
     if len(args) < 2:
         return await message.answer("Укажите ID пользователя.")
+
     try:
         user_id = int(args[1])
         if user_id in user_access and user_access[user_id] > time.time():
-            days = int((user_access[user_id] - time.time()) // 60)
-            tariff = user_tariffs.get(user_id, "не указан")
-            await message.answer(f"✅ У пользователя {user_id} есть доступ ({tariff.upper()}). Осталось дней: {days}.")
+            remaining_seconds = user_access[user_id] - time.time()
+            days = int(remaining_seconds // (24 * 60 * 60))
+            tariff = user_tariffs.get(user_id)
+
+            if tariff:
+                await message.answer(
+                    f"✅ У пользователя {user_id} есть доступ ({tariff.upper()}). Осталось дней: {days}."
+                )
+            else:
+                await message.answer(
+                    f"✅ У пользователя {user_id} есть доступ. Осталось дней: {days}, но тариф не указан."
+                )
         else:
             await message.answer("❌ Доступа нет или он истек.")
+
     except Exception as e:
-        logging.error(f"Ошибка: {e}")
+        logging.error(f"\u041e\u0448\u0438\u0431\u043a\u0430: {e}")
         await message.answer("Ошибка при проверке статуса.")
+
 
 @dp.message(Command("help"))
 async def help_admin(message: types.Message):
