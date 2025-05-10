@@ -71,7 +71,7 @@ async def grant_access(message: types.Message):
             return await message.answer("Тариф должен быть 'basic' или 'pro'.")
 
         days = 7 if tariff == "basic" else 30
-        user_access[user_id] = time.time() + days * 86400
+        user_access[user_id] = time.time() + 60
         user_tariffs[user_id] = tariff
         await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
         await bot.send_message(user_id, f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!", reply_markup=materials_keyboard)
@@ -109,7 +109,7 @@ async def check_status(message: types.Message):
     try:
         user_id = int(args[1])
         if user_id in user_access and user_access[user_id] > time.time():
-            days = int((user_access[user_id] - time.time()) // 86400)
+            days = int((user_access[user_id] - time.time()) // 60)
             tariff = user_tariffs.get(user_id, "не указан")
             await message.answer(f"✅ У пользователя {user_id} есть доступ ({tariff.upper()}). Осталось дней: {days}.")
         else:
@@ -150,18 +150,18 @@ async def handle_callback(call: types.CallbackQuery):
     if data == "basic":
         user_tariffs[user_id] = "basic"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Оплатить", url="https://www.kaspi.kz/qr-link")],
+            [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
         ])
-        await call.message.answer("Базовый тариф: 1000 KZT", reply_markup=keyboard)
+        await call.message.answer("Базовый тариф: 10 000 KZT", reply_markup=keyboard)
 
     elif data == "pro":
         user_tariffs[user_id] = "pro"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Оплатить", url="https://www.kaspi.kz/qr-link")],
+            [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_pro")]
         ])
-        await call.message.answer("ПРО тариф: 3000 KZT", reply_markup=keyboard)
+        await call.message.answer("ПРО тариф: 250 000 KZT", reply_markup=keyboard)
 
     elif data == "offer":
         offer_text = (
