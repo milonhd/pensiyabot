@@ -83,16 +83,25 @@ async def grant_access(message: types.Message):
 async def revoke_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
+    
     args = message.text.split()
     if len(args) < 2:
         return await message.answer("Укажите ID пользователя.")
+    
     try:
         user_id = int(args[1])
         if user_id in user_access:
+            # Удаляем доступ
             del user_access[user_id]
             user_tariffs.pop(user_id, None)
+            
+            # Уведомление для пользователя
+            await bot.send_message(user_id, "❌ Ваш доступ был отозван. Теперь вы не можете получать материалы.")
+            
+            # Уведомление для администратора
+            await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
+            
             await message.answer(f"Доступ для пользователя {user_id} отозван.")
-            await bot.send_message(user_id, "❌ Ваш доступ был отозван.")
         else:
             await message.answer("У пользователя нет доступа.")
     except Exception as e:
@@ -147,6 +156,16 @@ async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
 
+    if user_id in user_access and user_access[user_id] < time.time():
+        await call.message.answer("❌ У вас нет активного доступа.")
+        
+        # Уведомление для пользователя, если доступ истёк
+        await bot.send_message(user_id, "❌ Ваш доступ истёк. Обратитесь к администратору для восстановления доступа.")
+        
+        # Уведомление для администратора, если доступ истёк
+        await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} истёк.")
+        return
+        
     if data == "basic":
         user_tariffs[user_id] = "basic"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
