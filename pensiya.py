@@ -89,7 +89,7 @@ async def grant_access(message: types.Message):
         elif tariff == "pro":
             duration = 60 * 24 * 60 * 60
         else:
-            duration = 7 * 24 * 60 * 60
+            duration = 30
 
         user_access[user_id] = time.time() + duration
 
