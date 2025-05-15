@@ -5,8 +5,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
 
-API_TOKEN = '7940234323:AAG0GVXl_k4oLefRsZnte-S8PYUvowv2gVU'
-ADMIN_ID = 1640165074
+API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
+ADMIN_ID = 957724800
 
 logging.basicConfig(level=logging.INFO)
 
