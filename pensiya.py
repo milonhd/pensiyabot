@@ -322,6 +322,8 @@ async def handle_photo(message: types.Message):
 
 
 # 🔁 Проверка доступа каждые 10 сек
+GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]  # список ID групп (можно получить через @userinfobot)
+
 async def check_access_periodically():
     while True:
         current_time = time.time()
@@ -330,29 +332,31 @@ async def check_access_periodically():
         for user_id in expired_users:
             tariff = user_tariffs.get(user_id, "неизвестно")
 
-            try:
-                await bot.send_message(user_id, "❌ Ваш доступ истёк.")
-            except:
-                logging.warning(f"Не удалось отправить сообщение пользователю {user_id}.")
+            # Удаление из групп
+            for group_id in GROUP_IDS:
+                try:
+                    await bot.ban_chat_member(group_id, user_id)  # бан
+                    await bot.unban_chat_member(group_id, user_id)  # сразу разбан, чтобы можно было вернуться
+                    logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
+                except Exception as e:
+                    logging.warning(f"Не удалось удалить пользователя {user_id} из группы {group_id}: {e}")
 
-            # Получаем данные пользователя
+            # Уведомление пользователя
             try:
-                user_info = await bot.get_chat(user_id)
-                username = user_info.username if user_info.username else "неизвестно"
-                full_name = user_info.first_name + (" " + user_info.last_name if user_info.last_name else "")
-            except:
-                username = "неизвестно"
-                full_name = "неизвестно"
-                logging.warning(f"Не удалось получить информацию о пользователе {user_id}.")
-
-            try:
-                # Отправляем информацию админу
-                await bot.send_message(ADMIN_ID,
-                                       f"⛔️ У пользователя {full_name} (@{username}, ID: {user_id}) истёк доступ по тарифу {tariff}.")
+                await bot.send_message(user_id, "❌ Ваш доступ истёк. Вы были удалены из группы.")
             except:
                 pass
 
-            # Удаляем доступ
+            # Уведомление администратора
+            try:
+                await bot.send_message(
+                    ADMIN_ID,
+                    f"⛔️ Пользователь {user_id} был удалён из групп, доступ истёк ({tariff})."
+                )
+            except:
+                pass
+
+            # Очистка данных
             user_access.pop(user_id, None)
             user_tariffs.pop(user_id, None)
 
