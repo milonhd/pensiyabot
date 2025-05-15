@@ -5,8 +5,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
 
-API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
-ADMIN_ID = 957724800
+API_TOKEN = '7940234323:AAG0GVXl_k4oLefRsZnte-S8PYUvowv2gVU'
+ADMIN_ID = 1640165074
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,8 +18,9 @@ user_tariffs = {}
 
 # Кнопки
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Базовый тариф", callback_data="basic")],
-    [InlineKeyboardButton(text="Тариф ПРО", callback_data="pro")],
+    [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
+    [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
+    [InlineKeyboardButton(text="Уровень ПРО", callback_data="pro")],
     [InlineKeyboardButton(text="Публичная оферта", callback_data="offer")]
 ])
 
@@ -27,6 +28,16 @@ materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
 ])
 
+def get_self_years_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"Пенсия {year}", callback_data=f"year_{year}")] for year in range(2025, 2032)
+    ])
+
+def get_year_buttons(year):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
+        [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data=f"send_screenshot_{year}")]
+    ])
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -45,14 +56,15 @@ async def cmd_start(message: types.Message):
                 "1️⃣ Разборы пенсий в Казахстане: кто, когда и сколько может получить\n"
                 "2️⃣ Доступ к закрытым материалам: текст, видео, фото — в зависимости от выбранного тарифа\n\n"
 
-                "💰 *Тарифы:*\n"
-                "*Базовый тариф* — 10 000 тг\n"
-                "*Тариф ПРО* — 250 000 тг\n\n"
+                "💰 *Уровни:*\n"
+                "*САМОСТОЯТЕЛЬНЫЙ* — 10 000 тг\n"
+                "*БАЗОВЫЙ* — 50 000 тг\n"
+                "*ПРО* — 250 000 тг\n\n"
 
                 "Ты можешь оплатить прямо здесь и отправить скриншот оплаты. После этого администратор активирует тебе доступ, и появится кнопка *ПОЛУЧИТЬ МАТЕРИАЛЫ*.\n\n"
 
                 "Ты не один — давай разбираться вместе!\n"
-                "Нажимай *БАЗОВЫЙ ТАРИФ* или *ТАРИФ ПРО*, чтобы начать."
+                "Выбирай уровень, чтобы начать."
             )
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard)
 
@@ -63,27 +75,28 @@ async def grant_access(message: types.Message):
         return await message.answer("Нет доступа.")
     args = message.text.split()
     if len(args) < 3:
-        return await message.answer("Использование: /g [id] [basic/pro]")
+        return await message.answer("Использование: /g [id] [basic/pro/2025-2031]")
     try:
         user_id = int(args[1])
         tariff = args[2].lower()
-        if tariff not in ["basic", "pro"]:
-            return await message.answer("Тариф должен быть 'basic' или 'pro'.")
+        if tariff not in ["basic", "pro"] + [str(y) for y in range(2025, 2032)]:
+            return await message.answer("Тариф должен быть 'basic', 'pro' или '2025'-'2031'.")
 
-        # Сохраняем тариф пользователя
         user_tariffs[user_id] = tariff
 
         if tariff == "basic":
-            user_access[user_id] = time.time() + 7 * 24 * 60 * 60  # 7 дней
-            days = 7
+            duration = 30 * 24 * 60 * 60
+        elif tariff == "pro":
+            duration = 60 * 24 * 60 * 60
         else:
-            user_access[user_id] = time.time() + 30 * 24 * 60 * 60  # 30 дней
-            days = 30
+            duration = 7 * 24 * 60 * 60
 
-        await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {days} дней.")
+        user_access[user_id] = time.time() + duration
+
+        await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {duration // 86400} дней.")
         await bot.send_message(
             user_id,
-            f"✅ Доступ к материалам тарифа {tariff.upper()} активирован на {days} дней!",
+            f"✅ Доступ к материалам уровня {tariff.upper()} активирован на {duration // 86400} дней!",
             reply_markup=materials_keyboard
         )
     except Exception as e:
@@ -95,30 +108,31 @@ async def grant_access(message: types.Message):
 async def revoke_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
-    
+
     args = message.text.split()
     if len(args) < 2:
         return await message.answer("Укажите ID пользователя.")
-    
+
     try:
         user_id = int(args[1])
         if user_id in user_access:
             # Удаляем доступ
             del user_access[user_id]
             user_tariffs.pop(user_id, None)
-            
+
             # Уведомление для пользователя
             await bot.send_message(user_id, "❌ Ваш доступ был отозван. Теперь вы не можете получать материалы.")
-            
+
             # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
-            
+
             await message.answer(f"Доступ для пользователя {user_id} отозван.")
         else:
             await message.answer("У пользователя нет доступа.")
     except Exception as e:
         logging.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
+
 
 @dp.message(Command("status"))
 async def check_status(message: types.Message):
@@ -157,12 +171,13 @@ async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
     await message.answer("""
-/g [id] [basic/pro] - выдать доступ
+/g [id] [basic/pro/2025-2031] - выдать доступ
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
 /users - показать всех с доступом
 /help - команды
     """)
+
 
 @dp.message(Command("users"))
 async def show_users(message: types.Message):
@@ -175,11 +190,27 @@ async def show_users(message: types.Message):
         for uid, exp in user_access.items() if exp > time.time()
     ]
     await message.answer("\n".join(lines))
-        
-@dp.callback_query(lambda c: c.data in ["basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
+
+@dp.callback_query(lambda c: c.data.startswith("year_"))
+async def handle_year_selection(call: types.CallbackQuery):
+    year = call.data.split("_")[1]
+    await call.message.answer(f"Вы выбрали Пенсия {year}", reply_markup=get_year_buttons(year))
+
+@dp.callback_query(lambda c: c.data.startswith("send_screenshot_"))
+async def handle_year_screenshot(call: types.CallbackQuery):
+    year = call.data.split("_")[2]
+    user_tariffs[call.from_user.id] = year
+    await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
+
+@dp.callback_query(
+    lambda c: c.data in ["self", "basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
+
+    if data == "self":
+        await call.message.answer("Выберите год вашего выхода на пенсию:", reply_markup=get_self_years_keyboard())
+        return
 
     if data == "basic":
         user_tariffs[user_id] = "basic"
@@ -187,7 +218,7 @@ async def handle_callback(call: types.CallbackQuery):
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
         ])
-        await call.message.answer("Базовый тариф: 10 000 KZT", reply_markup=keyboard)
+        await call.message.answer("Уровень БАЗОВЫЙ: 10 000 KZT", reply_markup=keyboard)
 
     elif data == "pro":
         user_tariffs[user_id] = "pro"
@@ -195,7 +226,7 @@ async def handle_callback(call: types.CallbackQuery):
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_pro")]
         ])
-        await call.message.answer("ПРО тариф: 250 000 KZT", reply_markup=keyboard)
+        await call.message.answer("Уровень ПРО: 250 000 KZT", reply_markup=keyboard)
 
     elif data == "offer":
         offer_text = (
@@ -213,12 +244,13 @@ async def handle_callback(call: types.CallbackQuery):
             "*3. Условия предоставления услуг*\n"
             "3.1. Услуги предоставляются через Telegram-бот «СВОЯ ПЕНСИЯ» после подтверждения оплаты.\n"
             "3.2. Услуги оказываются в виде доступа к информационным материалам, с возможностью задать вопрос после активации тарифа.\n"
-            "3.3. Срок доступа: 7 календарных дней для базового тарифа с момента активации, 30 дней для тарифа ПРО с момента активации.\n\n"
+            "3.3. Срок доступа: 7 календарных дней для Уровня САМОСТОЯТЕЛЬНЫЙ с момента активации, 30 дней для Уровня БАЗОВЫЙ с момента активации, 60 дней для Уровня ПРО с момента активации.\n\n"
 
             "*4. Стоимость и порядок оплаты*\n"
             "4.1. Стоимость услуг составляет:\n"
-            "— Базовый тариф: 10 000 тенге\n"
-            "— Тариф ПРО: 250 000 тенге\n"
+            "— Уровень САМОСТОЯТЕЛЬНЫЙ: 10 000 тенге\n"
+            "— Уровень БАЗОВЫЙ: 50 000 тенге\n"
+            "— Уровень ПРО: 250 000 тенге\n"
             "4.2. Оплата производится через Kaspi Pay на реквизиты, указанные в боте.\n"
             "4.3. После оплаты Заказчик обязан отправить подтверждение (скриншот) администратору бота.\n\n"
 
@@ -244,32 +276,50 @@ async def handle_callback(call: types.CallbackQuery):
             "Реквизиты для оплаты через Kaspi Pay: ИП БАЯНТАЕВА"
         )
         await call.message.answer(offer_text, parse_mode="Markdown")
-    
+
     elif data == "get_materials":
         if user_id not in user_access or user_access[user_id] < time.time():
             return await call.message.answer("❌ У вас нет активного доступа.")
         else:
             tariff = user_tariffs.get(user_id)
-            link = "https://t.me/+9lsuUY_a4xMxMDVi" if tariff == "basic" else "https://t.me/yourchannel"
-            await call.message.answer(f"🔗 Ссылка на канал: {link}")
+
+            # Словарь ссылок для каждого тарифа
+            links = {
+                "basic": "https://t.me/+HxDdgxzq-9tiNDAy",
+                "pro": "https://t.me/pro_channel",
+                "2025": "https://t.me/+AaxT4exaNP40NGE6",
+                "2026": "https://t.me/+RIvK4Xqzvis1ZjJi",
+                "2027": "https://t.me/+ZxN5WrOTCNlhMDIy",
+                "2028": "https://t.me/+F5rkfcWZn4AxZTBi",
+                "2029": "https://t.me/+lAKvIyr6znw1ZDky",
+                "2030": "https://t.me/+VdBjEj-W9oAyZmEy",
+                "2031": "https://t.me/+slHyJgK8t1k0MWNi"
+            }
+
+            link = links.get(tariff)
+            if link:
+                await call.message.answer(f"🔗 Ссылка на канал: {link}")
+            else:
+                await call.message.answer("❌ Не удалось определить ссылку для вашего тарифа.")
 
     elif data.startswith("send_screenshot"):
         await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
+
 
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
     user = message.from_user
     tariff = user_tariffs.get(user.id, "не выбран")
-
     info = (
         f"📸 Скриншот от пользователя:\n"
         f"🆔 ID: {user.id}\n"
         f"👤 Username: @{user.username if user.username else 'Без username'}\n"
-        f"💳 Тариф: {tariff.upper() if tariff else 'не выбран'}"
+        f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}"
     )
-    await message.answer(f"Спасибо за скриншот! Вы выбрали тариф: {tariff.upper()}")
+    await message.answer(f"Спасибо за скриншот! Вы выбрали уровень: {tariff.upper()}")
     await bot.send_message(ADMIN_ID, info)
     await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption="Скриншот оплаты")
+
 
 # 🔁 Проверка доступа каждые 10 сек
 async def check_access_periodically():
@@ -297,7 +347,8 @@ async def check_access_periodically():
 
             try:
                 # Отправляем информацию админу
-                await bot.send_message(ADMIN_ID, f"⛔️ У пользователя {full_name} (@{username}, ID: {user_id}) истёк доступ по тарифу {tariff}.")
+                await bot.send_message(ADMIN_ID,
+                                       f"⛔️ У пользователя {full_name} (@{username}, ID: {user_id}) истёк доступ по тарифу {tariff}.")
             except:
                 pass
 
@@ -311,6 +362,7 @@ async def check_access_periodically():
 async def main():
     asyncio.create_task(check_access_periodically())
     await dp.start_polling(bot)
+
 
 if __name__ == '__main__':
     asyncio.run(main())
