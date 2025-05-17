@@ -275,10 +275,9 @@ async def handle_callback(call: types.CallbackQuery):
 
     elif data == "offer":
         pdf_path = os.path.join(os.path.dirname(__file__), "Публичная оферта.pdf")
-
-        try:
-            document = InputFile(pdf_path)
-            await call.message.answer_document(document)
+        document = InputFile(path=pdf_path)
+        await call.message.answer_document(document)
+        
         except Exception as e:
             await call.message.answer(f"Ошибка при отправке файла: {e}")
     
