@@ -277,9 +277,6 @@ async def handle_callback(call: types.CallbackQuery):
         pdf_path = os.path.join(os.path.dirname(__file__), "Публичная оферта.pdf")
         document = InputFile(path=pdf_path)
         await call.message.answer_document(document)
-        
-        except Exception as e:
-            await call.message.answer(f"Ошибка при отправке файла: {e}")
     
     elif data == "get_materials":
         if user_id not in user_access or user_access[user_id] < time.time():
