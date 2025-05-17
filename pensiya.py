@@ -235,11 +235,11 @@ async def handle_callback(call: types.CallbackQuery):
         return
 
     if data == "basic":
-    user_tariffs[user_id] = "basic"
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-        [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
-    ])
+        user_tariffs[user_id] = "basic"
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
+            [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
+        ])
     await call.message.answer(
         """
 🔸 Уровень БАЗОВЫЙ — мини-курс для тех, кто хочет понимать расчёт пенсии и помогать другим
@@ -261,8 +261,7 @@ async def handle_callback(call: types.CallbackQuery):
 
 👇 Нажмите «Оплата», чтобы перейти к реквизитам.
         """,
-        reply_markup=keyboard
-    )
+        reply_markup=keyboard)
 
     elif data == "pro":
         user_tariffs[user_id] = "pro"
