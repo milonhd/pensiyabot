@@ -274,7 +274,7 @@ async def handle_callback(call: types.CallbackQuery):
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
 
     elif data == "offer":
-        pdf_path = "Публичная_оферта.pdf"  # убедись, что путь и имя файла корректны
+        pdf_path = "oferta.pdf"  # убедись, что путь и имя файла корректны
         try:
             document = FSInputFile(pdf_path)
             await call.message.answer_document(document)
