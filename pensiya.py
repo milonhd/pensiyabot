@@ -279,7 +279,7 @@ async def handle_callback(call: types.CallbackQuery):
         try:
             document = InputFile(pdf_path)
             await call.message.answer_document(document)
-    except Exception as e:
+        except Exception as e:
             await call.message.answer(f"Ошибка при отправке файла: {e}")
     
     elif data == "get_materials":
