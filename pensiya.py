@@ -275,8 +275,8 @@ async def handle_callback(call: types.CallbackQuery):
         pdf_path = "Публичная оферта.pdf"  # путь к вашему PDF-файлу
 
     # Отправляем файл пользователю
-    await call.message.answer_document(open(pdf_path, "rb"))
-
+        await call.message.answer_document(open(pdf_path, "rb"))
+    
     elif data == "get_materials":
         if user_id not in user_access or user_access[user_id] < time.time():
             return await call.message.answer("❌ У вас нет активного доступа.")
