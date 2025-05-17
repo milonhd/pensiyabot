@@ -5,6 +5,7 @@ import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
+from aiogram.types import InputFile
 
 API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
@@ -273,10 +274,13 @@ async def handle_callback(call: types.CallbackQuery):
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
 
     elif data == "offer":
-        pdf_path = os.path.join(os.path.dirname(__file__), "Публичная оферта.pdf")  # путь к вашему PDF-файлу
+        pdf_path = os.path.join(os.path.dirname(__file__), "Публичная оферта.pdf")
 
-    # Отправляем файл пользователю
-        await call.message.answer_document(open(pdf_path, "rb"))
+        try:
+            document = InputFile(pdf_path)
+            await call.message.answer_document(document)
+    except Exception as e:
+            await call.message.answer(f"Ошибка при отправке файла: {e}")
     
     elif data == "get_materials":
         if user_id not in user_access or user_access[user_id] < time.time():
