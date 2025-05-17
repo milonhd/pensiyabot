@@ -2,6 +2,7 @@ import logging
 import time
 import asyncio
 import os
+from aiogram import F
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
@@ -323,6 +324,22 @@ async def handle_photo(message: types.Message):
     await message.answer(f"Спасибо за скриншот! Вы выбрали уровень: {tariff.upper()}")
     await bot.send_message(ADMIN_ID, info)
     await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption="Скриншот оплаты")
+
+# Удаление сообщений о входе новых участников
+@dp.message(F.new_chat_members)
+async def remove_join_message(message: types.Message):
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить join-сообщение: {e}")
+
+# Удаление сообщений о выходе участников
+@dp.message(F.left_chat_member)
+async def remove_leave_message(message: types.Message):
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить leave-сообщение: {e}")
 
 
 # 🔁 Проверка доступа каждые 10 сек
