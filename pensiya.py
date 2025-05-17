@@ -272,7 +272,7 @@ async def handle_callback(call: types.CallbackQuery):
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
 
     elif data == "offer":
-    pdf_path = "Публичная оферта.pdf"  # путь к вашему PDF-файлу
+        pdf_path = "Публичная оферта.pdf"  # путь к вашему PDF-файлу
 
     # Отправляем файл пользователю
     await call.message.answer_document(open(pdf_path, "rb"))
