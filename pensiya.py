@@ -123,7 +123,7 @@ def get_self_years_keyboard():
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-        [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_screenshot_{year}")]
+        [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_receipt_{year}")]
     ])
 
 @dp.message(Command("start"))
