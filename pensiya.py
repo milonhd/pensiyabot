@@ -375,6 +375,18 @@ async def handle_callback(call: types.CallbackQuery):
             await call.message.answer("⚠️ Ошибка при отправке файла: " + str(e))
     
     elif data == "get_materials":
+        # Деактивируем кнопку сразу после нажатия
+        await call.answer()
+        await call.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text="✅ Материалы получены", 
+                        callback_data="used_link"
+                    )]
+                ]
+            )
+        )
         expire_time, tariff = await get_user_access(user_id)
         if not expire_time or expire_time < time.time():
             return await call.message.answer("❌ У вас нет активного доступа.")
@@ -406,7 +418,7 @@ async def handle_callback(call: types.CallbackQuery):
         
             # Отправляем сообщение со ссылкой
             msg = await call.message.answer(
-                f"🔐 Ваша персональная ссылка:\n{invite.invite_link}"
+                f"🔐 Ваша персональная ссылка (исчезнет спустя 15 секунд):\n{invite.invite_link}"
             )
             
             # Удаляем сообщение через 15 секунд
@@ -419,6 +431,11 @@ async def handle_callback(call: types.CallbackQuery):
         except Exception as e:
             logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
             await call.message.answer("⚠️ Ошибка при создании ссылки.")
+
+# Обработчик для неактивной кнопки
+@dp.callback_query(F.data == "used_link")
+async def handle_used_link(call: types.CallbackQuery):
+    await call.answer("Вы уже использовали эту ссылку", show_alert=True)
 
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
