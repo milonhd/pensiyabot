@@ -415,9 +415,9 @@ async def handle_callback(call: types.CallbackQuery):
             except Exception as e:
                 logging.error(f"Не удалось удалить сообщение: {e}")
             
-    except Exception as e:
-        logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
-        await call.message.answer("⚠️ Ошибка при создании ссылки.")
+        except Exception as e:
+            logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
+            await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
