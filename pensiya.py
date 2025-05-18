@@ -400,7 +400,8 @@ async def handle_callback(call: types.CallbackQuery):
             invite = await bot.create_chat_invite_link(
                 chat_id=chat_id,
                 member_limit=1,
-                expire_date=int(time.time()) + 15
+                expire_date=int(time.time()) + 15,
+                creates_join_request=False
             )
         
             # Отправляем сообщение со ссылкой
