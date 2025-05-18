@@ -625,18 +625,152 @@ async def support_command(message: types.Message):
 По всем вопросам обращайтесь:
 👉 WhatsApp: <a href="https://wa.me/77754850900">+7 775 485 09 00</a>
 ⏰ Часы работы: Пн-Пт, 12:00-22:00
-
-Мы ответим в течение 15 минут в рабочее время!
     """
     await message.answer(support_msg, parse_mode="HTML")
+
+@dp.message(Command("broadcast"))
+async def broadcast_start(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return await message.answer("🚫 Доступ запрещен")
+    
+    await message.answer(
+        "📤 Отправьте сообщение для рассылки (текст + фото/видео):",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(BroadcastStates.waiting_content)
+
+@dp.message(BroadcastStates.waiting_content)
+async def process_content(message: types.Message, state: FSMContext):
+    content = {
+        'text': message.html_text,
+        'photo': message.photo[-1].file_id if message.photo else None,
+        'video': message.video.file_id if message.video else None
+    }
+    
+    # Предпросмотр
+    preview = "📋 Предпросмотр рассылки:\n\n" + content['text']
+    if content['photo']:
+        await message.answer_photo(content['photo'], caption=preview)
+    elif content['video']:
+        await message.answer_video(content['video'], caption=preview)
+    else:
+        await message.answer(preview)
+    
+    # Кнопки действий
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="🚀 Отправить сейчас")
+    builder.button(text="⏰ Запланировать")
+    builder.button(text="❌ Отменить")
+    builder.adjust(2)
+    
+    await message.answer(
+        "Выберите действие:",
+        reply_markup=builder.as_markup(resize_keyboard=True)
+    )
+    await state.update_data(content=content)
+    await state.set_state(BroadcastStates.waiting_confirm)
+
+@dp.message(BroadcastStates.waiting_confirm)
+async def confirm_broadcast(message: types.Message, state: FSMContext):
+    if message.text == "❌ Отменить":
+        await state.clear()
+        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+    
+    if message.text == "⏰ Запланировать":
+        await message.answer(
+            "⏳ Введите время отправки в формате ЧЧ:ММ (например 15:30):",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(BroadcastStates.waiting_time)
+        return
+    
+    await send_broadcast(message, state)
+
+@dp.message(BroadcastStates.waiting_time)
+async def schedule_broadcast(message: types.Message, state: FSMContext):
+    try:
+        send_time = datetime.strptime(message.text, "%H:%M").replace(
+            year=datetime.now().year,
+            month=datetime.now().month,
+            day=datetime.now().day
+        )
+        
+        if send_time < datetime.now():
+            send_time += timedelta(days=1)
+            
+        data = await state.get_data()
+        scheduler.add_job(
+            execute_scheduled_broadcast,
+            'date',
+            run_date=send_time,
+            args=[data['content']],
+            id=f"broadcast_{send_time.timestamp()}"
+        )
+        
+        await message.answer(
+            f"✅ Рассылка запланирована на {send_time.strftime('%d.%m.%Y %H:%M')}",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.clear()
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат времени. Используйте ЧЧ:ММ")
+
+async def send_broadcast(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    users = await get_all_users()
+    
+    success = 0
+    errors = 0
+    
+    for user_id in users:
+        try:
+            if data['content']['photo']:
+                await bot.send_photo(user_id, data['content']['photo'], caption=data['content']['text'])
+            elif data['content']['video']:
+                await bot.send_video(user_id, data['content']['video'], caption=data['content']['text'])
+            else:
+                await bot.send_message(user_id, data['content']['text'])
+            success += 1
+        except Exception as e:
+            logger.error(f"Ошибка отправки пользователю {user_id}: {str(e)}")
+            errors += 1
+    
+    await message.answer(
+        f"📊 Рассылка завершена:\n\n"
+        f"✅ Успешно: {success}\n"
+        f"❌ Ошибок: {errors}",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.clear()
+
+async def execute_scheduled_broadcast(content: dict):
+    users = await get_all_users()
+    for user_id in users:
+        try:
+            if content['photo']:
+                await bot.send_photo(user_id, content['photo'], caption=content['text'])
+            elif content['video']:
+                await bot.send_video(user_id, content['video'], caption=content['text'])
+            else:
+                await bot.send_message(user_id, content['text'])
+        except Exception as e:
+            logger.error(f"Scheduled broadcast error: {str(e)}")
+
+async def on_startup():
+    await init_db()
+    await set_commands()
+    scheduler.start()
 
 async def main():
     # Инициализация базы данных при запуске
     await init_db()
     # Запуск периодической проверки доступов
     asyncio.create_task(check_access_periodically())
-    # Запуск бота
-    await dp.start_polling(bot)
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    dp.startup.register(on_startup)
+    try:
+        asyncio.run(dp.start_polling(bot))
+    finally:
+        scheduler.shutdown()
