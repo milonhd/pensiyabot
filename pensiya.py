@@ -217,7 +217,6 @@ async def revoke_access(message: types.Message):
             # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
 
-            await message.answer(f"Доступ для пользователя {user_id} отозван.")
         else:
             await message.answer("У пользователя нет доступа.")
     except Exception as e:
