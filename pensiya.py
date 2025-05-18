@@ -168,9 +168,9 @@ async def get_all_users():
 
 async def set_commands():
     commands = [
-        types.BotCommand(command="/support", description="📞 Поддержка"),
-        types.BotCommand(command="/offer", description="📄 Публичная оферта"),
-        types.BotCommand(command="/broadcast", description="📢 Рассылка"),
+        types.BotCommand(command="support", description="📞 Поддержка"),
+        types.BotCommand(command="offer", description="📄 Публичная оферта"),
+        types.BotCommand(command="broadcast", description="📢 Рассылка"),
     ]
     await bot.set_my_commands(commands)
     
@@ -357,6 +357,15 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
+@dp.message(Command("offer"))
+async def offer_command(message: types.Message):
+    pdf_path = "oferta.pdf"
+    try:
+        document = FSInputFile(pdf_path)
+        await message.answer_document(document)
+    except Exception as e:
+        await message.answer("⚠️ Ошибка при отправке файла: " + str(e))
+
 @dp.callback_query(lambda c: c.data.startswith("year_"))
 async def handle_year_selection(call: types.CallbackQuery):
     year = call.data.split("_")[1]
@@ -477,14 +486,6 @@ async def handle_callback(call: types.CallbackQuery):
             [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_screenshot_pro")]
         ])
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
-
-    elif data == "offer":
-        pdf_path = "oferta.pdf"  # убедись, что путь и имя файла корректны
-        try:
-            document = FSInputFile(pdf_path)
-            await call.message.answer_document(document)
-        except Exception as e:
-            await call.message.answer("⚠️ Ошибка при отправке файла: " + str(e))
     
     elif data == "get_materials":
         # Деактивируем кнопку сразу после нажатия
@@ -703,7 +704,7 @@ async def support_command(message: types.Message):
 @dp.message(Command("broadcast"))
 async def broadcast_start(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("🚫 Доступ запрещен", reply_markup=ReplyKeyboardRemove())
+        return await message.answer("🚫 Доступ запрещен")
     
     # Клавиатура с кнопкой отмены
     cancel_kb = ReplyKeyboardBuilder()
@@ -712,28 +713,27 @@ async def broadcast_start(message: types.Message, state: FSMContext):
     
     await message.answer(
         "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
-        reply_markup=cancel_kb.as_markup(resize_keyboard=True)
+        reply_markup=cancel_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
     )
     await state.set_state(BroadcastStates.waiting_content)
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    if message.text == "❌ Отменить рассылку":
+    if message.text and message.text == "❌ Отменить рассылку":
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
     
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
         'photo': message.photo[-1].file_id if message.photo else None,
         'video': message.video.file_id if message.video else None,
-        'document': message.document.file_id if message.document and message.document.mime_type == 'application/pdf' else None
+        'document': message.document.file_id if message.document else None
     }
     
     if not content['text'] and not content['photo'] and not content['video'] and not content['document']:
         await message.answer("❌ Сообщение не может быть пустым")
         return
     
-    # Сохраняем контент
     await state.update_data(content=content)
     
     # Клавиатура подтверждения
@@ -761,7 +761,7 @@ async def process_content(message: types.Message, state: FSMContext):
     
     await message.answer(
         "Выберите действие:",
-        reply_markup=confirm_kb.as_markup(resize_keyboard=True)
+        reply_markup=confirm_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
     )
     await state.set_state(BroadcastStates.waiting_confirm)
 
@@ -769,7 +769,7 @@ async def process_content(message: types.Message, state: FSMContext):
 async def confirm_broadcast(message: types.Message, state: FSMContext):
     if message.text == "❌ Отменить":
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
     
     if message.text == "⏰ Запланировать время":
         time_kb = ReplyKeyboardBuilder()
@@ -781,7 +781,7 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         
         await message.answer(
             "⏳ Выберите время отправки или введите в формате ЧЧ:ММ (например 15:30):",
-            reply_markup=time_kb.as_markup(resize_keyboard=True)
+            reply_markup=time_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
         )
         await state.set_state(BroadcastStates.waiting_time)
         return
@@ -790,7 +790,7 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         await send_broadcast(message, state)
         return
     
-    await message.answer("Пожалуйста, используйте кнопки для выбора действия")
+    await message.answer("Пожалуйста, используйте кнопки для выбора действия", reply_markup=types.ReplyKeyboardRemove())
 
 @dp.message(BroadcastStates.waiting_time)
 async def schedule_broadcast(message: types.Message, state: FSMContext):
