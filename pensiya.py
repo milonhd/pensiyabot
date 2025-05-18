@@ -136,7 +136,7 @@ async def cmd_start(message: types.Message):
     else:
         expire_time, _ = await get_user_access(message.from_user.id)
         if expire_time and expire_time > time.time():
-            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=materials_keyboard)
+            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_keyboard)
         else:
             welcome_text = (
                f"👋 *Добро пожаловать, {name}, в бот «СВОЯ ПЕНСИЯ»* – твой персональный помощник на пути к достойной пенсии!\n"
@@ -312,7 +312,7 @@ async def handle_year_selection(call: types.CallbackQuery):
     
     await call.message.answer(text, reply_markup=get_year_buttons(year))
 
-@dp.callback_query(lambda c: c.data.startswith("send_receipt_"))
+@dp.callback_query(F.data.startswith("send_receipt_"))
 async def handle_receipt(call: types.CallbackQuery):
     year = call.data.split("_")[2]
     await set_user_access(call.from_user.id, None, year)  
@@ -325,7 +325,7 @@ async def handle_receipt(call: types.CallbackQuery):
     )
 
 @dp.callback_query(
-    lambda c: c.data in ["self", "basic", "pro", "offer", "send_receipt_basic", "send_receipt_pro", "get_materials"])
+    lambda c: c.data in ["self", "basic", "pro", "offer", "send_receipt_basic", "send_receipt_pro", "get_materials", "used_link"])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
@@ -581,6 +581,11 @@ async def check_subscriptions():
                     reply_markup=main_keyboard
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
+
+@dp.callback_query()
+async def debug_handler(call: types.CallbackQuery):
+    print(f"Получен callback: {call.data}")
+    await call.answer(f"Бот получил: {call.data}", show_alert=True)
 
 async def main():
     # Инициализация базы данных при запуске
