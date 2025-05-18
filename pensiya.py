@@ -786,9 +786,10 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
 async def schedule_broadcast(message: types.Message, state: FSMContext):
     if message.text == "❌ Отменить":
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
     
     try:
+        # Обработка стандартных вариантов
         if message.text == "Через 1 час":
             send_time = datetime.now() + timedelta(hours=1)
         elif message.text == "Через 3 часа":
@@ -796,14 +797,42 @@ async def schedule_broadcast(message: types.Message, state: FSMContext):
         elif message.text == "Завтра в это время":
             send_time = datetime.now() + timedelta(days=1)
         else:
-            send_time = datetime.strptime(message.text, "%H:%M").replace(
-                year=datetime.now().year,
-                month=datetime.now().month,
-                day=datetime.now().day
-            )
-            if send_time < datetime.now():
-                send_time += timedelta(days=1)
-        
+            # Обработка ручного ввода
+            try:
+                if ':' not in message.text:
+                    raise ValueError
+                
+                time_parts = message.text.split(':')
+                if len(time_parts) != 2:
+                    raise ValueError
+                
+                hours, minutes = map(int, time_parts)
+                
+                if not (0 <= hours < 24 and 0 <= minutes < 60):
+                    await message.answer("❌ Время должно быть в диапазоне:\nЧасы: 00-23\nМинуты: 00-59")
+                    return
+                
+                send_time = datetime.now().replace(
+                    hour=hours,
+                    minute=minutes,
+                    second=0,
+                    microsecond=0
+                )
+                
+                if send_time < datetime.now():
+                    send_time += timedelta(days=1)
+                    
+            except ValueError:
+                error_msg = (
+                    "❌ Неверный формат времени.\n\n"
+                    "Пожалуйста, введите время в формате ЧЧ:ММ (например 15:30) или выберите один из вариантов:\n"
+                    "- Через 1 час\n"
+                    "- Через 3 часа\n"
+                    "- Завтра в это время"
+                )
+                await message.answer(error_msg)
+                return
+
         data = await state.get_data()
         scheduler.add_job(
             execute_scheduled_broadcast,
@@ -815,12 +844,13 @@ async def schedule_broadcast(message: types.Message, state: FSMContext):
         
         await message.answer(
             f"✅ Рассылка запланирована на {send_time.strftime('%d.%m.%Y %H:%M')}",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=types.ReplyKeyboardRemove()
         )
         await state.clear()
         
-    except ValueError:
-        await message.answer("❌ Неверный формат времени. Используйте ЧЧ:ММ или выберите вариант из кнопок")
+    except Exception as e:
+        logger.error(f"Ошибка планирования: {e}")
+        await message.answer("❌ Произошла ошибка при планировании рассылки")
 
 async def send_broadcast(message: types.Message, state: FSMContext):
     data = await state.get_data()
