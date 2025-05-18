@@ -1,5 +1,4 @@
 aiogram
 aiohttp
-asyncpg
-sqlalchemy
+aiopg
 psycopg2-binary
