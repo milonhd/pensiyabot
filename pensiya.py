@@ -725,10 +725,11 @@ async def process_content(message: types.Message, state: FSMContext):
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
         'photo': message.photo[-1].file_id if message.photo else None,
-        'video': message.video.file_id if message.video else None
+        'video': message.video.file_id if message.video else None,
+        'document': message.document.file_id if message.document and message.document.mime_type == 'application/pdf' else None
     }
     
-    if not content['text'] and not content['photo'] and not content['video']:
+    if not content['text'] and not content['photo'] and not content['video'] and not content['document']:
         await message.answer("❌ Сообщение не может быть пустым")
         return
     
@@ -749,6 +750,8 @@ async def process_content(message: types.Message, state: FSMContext):
             await message.answer_photo(content['photo'], caption=preview_text)
         elif content['video']:
             await message.answer_video(content['video'], caption=preview_text)
+        elif content['document']:
+            await message.answer_document(content['document'], caption=preview_text)
         else:
             await message.answer(preview_text)
     except Exception as e:
@@ -842,6 +845,8 @@ async def send_broadcast(message: types.Message, state: FSMContext):
                 await bot.send_photo(user_id, data['content']['photo'], caption=data['content']['text'])
             elif data['content']['video']:
                 await bot.send_video(user_id, data['content']['video'], caption=data['content']['text'])
+            elif data['content']['document']:
+                await bot.send_document(user_id, data['content']['document'], caption=data['content']['text'])
             else:
                 await bot.send_message(user_id, data['content']['text'])
             success += 1
@@ -865,6 +870,8 @@ async def execute_scheduled_broadcast(content: dict):
                 await bot.send_photo(user_id, content['photo'], caption=content['text'])
             elif content['video']:
                 await bot.send_video(user_id, content['video'], caption=content['text'])
+            elif content['document']:
+                await bot.send_document(user_id, content['document'], caption=content['text'])
             else:
                 await bot.send_message(user_id, content['text'])
         except Exception as e:
