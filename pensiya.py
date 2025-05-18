@@ -173,7 +173,7 @@ async def set_commands():
         types.BotCommand(command="offer", description="Публичная оферта"),
     ]
     if ADMIN_ID:
-        commands.append(types.BotCommand(command="broadcast", description="Рассылка (админ)"))
+        commands.append(types.BotCommand(command="broadcast", description="Рассылка"))
     await bot.set_my_commands(commands)
 
 # Кнопки 
@@ -216,11 +216,11 @@ async def cmd_start(message: types.Message):
     main_kb.adjust(2)  # 2 кнопки в ряд
     
     if message.from_user.id == ADMIN_ID:
-        await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True))
+        await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
     else:
         expire_time, _ = await get_user_access(message.from_user.id)
         if expire_time and expire_time > time.time():
-            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_kb.as_markup(resize_keyboard=True))
+            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
         else:
             welcome_text = (
                f"👋 *Добро пожаловать, {name}, в бот «СВОЯ ПЕНСИЯ»* – твой персональный помощник на пути к достойной пенсии!\n"
@@ -241,7 +241,7 @@ async def cmd_start(message: types.Message):
                 "Ты не один — давай разбираться вместе!\n"
                 "Выбирай уровень, чтобы начать."
             )
-            await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True))
+            await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
 
 
 @dp.message(Command("g"))
