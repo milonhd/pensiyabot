@@ -283,33 +283,43 @@ async def handle_callback(call: types.CallbackQuery):
             await call.message.answer("⚠️ Ошибка при отправке файла: " + str(e))
     
     elif data == "get_materials":
-        if user_id not in user_access or user_access[user_id] < time.time():
-            return await call.message.answer("❌ У вас нет активного доступа.")
-        else:
-            tariff = user_tariffs.get(user_id)
+    if user_id not in user_access or user_access[user_id] < time.time():
+        return await call.message.answer("❌ У вас нет активного доступа.")
 
-            # Словарь ссылок для каждого тарифа
-            links = {
-                "basic": "https://t.me/+HxDdgxzq-9tiNDAy",
-                "pro": "https://t.me/pro_channel",
-                "2025": "https://t.me/+AaxT4exaNP40NGE6",
-                "2026": "https://t.me/+RIvK4Xqzvis1ZjJi",
-                "2027": "https://t.me/+ZxN5WrOTCNlhMDIy",
-                "2028": "https://t.me/+F5rkfcWZn4AxZTBi",
-                "2029": "https://t.me/+lAKvIyr6znw1ZDky",
-                "2030": "https://t.me/+VdBjEj-W9oAyZmEy",
-                "2031": "https://t.me/+slHyJgK8t1k0MWNi"
-            }
+    tariff = user_tariffs.get(user_id)
 
-            link = links.get(tariff)
-            if link:
-                await call.message.answer(f"🔗 Ссылка на канал: {link}")
-            else:
-                await call.message.answer("❌ Не удалось определить ссылку для вашего тарифа.")
+    # Сопоставление тарифов и ID групп
+    tariff_chat_map = {
+        "basic": -1002583988789,
+        "2025": -1002529607781,
+        "2026": -1002611068580,
+        "2027": -1002607289832,
+        "2028": -1002560662894,
+        "2029": -1002645685285,
+        "2030": -1002529375771,
+        "2031": -1002262602915
+    }
+
+    chat_id = tariff_chat_map.get(tariff)
+    if not chat_id:
+        return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
+
+    link = await get_personal_invite(chat_id)
+    if link:
+        await call.message.answer(f"🔗 Ваша персональная ссылка для входа:\n{link}")
+    else:
+        await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
     elif data.startswith("send_screenshot"):
         await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
 
+async def get_personal_invite(chat_id: int) -> str:
+    try:
+        invite_link = await bot.create_chat_invite_link(chat_id=chat_id, member_limit=1, creates_join_request=False)
+        return invite_link.invite_link
+    except Exception as e:
+        logging.error(f"Не удалось создать ссылку для чата {chat_id}: {e}")
+        return None
 
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
@@ -322,7 +332,10 @@ async def handle_photo(message: types.Message):
         f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}"
     )
     await message.answer(f"Спасибо за скриншот! Вы выбрали уровень: {tariff.upper()}")
-    await bot.send_message(ADMIN_ID, info)
+    approve_button = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Выдать доступ", callback_data=f"approve_{user.id}")]
+    ])
+    await bot.send_message(ADMIN_ID, info, reply_markup=approve_button)
     await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption="Скриншот оплаты")
 
 # Удаление сообщений о входе новых участников
@@ -383,6 +396,40 @@ async def check_access_periodically():
 
         await asyncio.sleep(5)
 
+@dp.callback_query(lambda c: c.data.startswith("approve_"))
+async def approve_user(call: types.CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        return await call.answer("Недостаточно прав")
+
+    user_id = int(call.data.split("_")[1])
+    tariff = user_tariffs.get(user_id)
+
+    if not tariff:
+        return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
+
+    # Длительность доступа
+    if tariff == "basic":
+        duration = 30 * 86400
+    elif tariff == "pro":
+        duration = 60 * 86400
+    elif tariff in [str(y) for y in range(2025, 2032)]:
+        duration = 7 * 86400
+    else:
+        return await call.answer("❌ Неизвестный тариф.")
+
+    # Сохраняем
+    user_access[user_id] = time.time() + duration
+
+    # Лог
+    with open("access_log.txt", "a", encoding="utf-8") as f:
+        f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
+
+    # Уведомление пользователю
+    await bot.send_message(user_id, f"✅ Доступ уровня {tariff.upper()} выдан на {duration // 86400} дней!", reply_markup=materials_keyboard)
+
+    # Убираем кнопку
+    await call.message.edit_reply_markup(reply_markup=None)
+    await call.answer("Доступ выдан.")
 
 async def main():
     asyncio.create_task(check_access_periodically())
