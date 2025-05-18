@@ -325,7 +325,11 @@ async def handle_receipt(call: types.CallbackQuery):
     )
 
 @dp.callback_query(
-    lambda c: c.data in ["self", "basic", "pro", "offer", "send_receipt_basic", "send_receipt_pro", "get_materials", "used_link"])
+    lambda c: c.data in [
+        "self", "basic", "pro", "offer",
+        "send_receipt_basic", "send_receipt_pro",  # Добавляем новые значения
+        "get_materials", "used_link"
+    ])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
