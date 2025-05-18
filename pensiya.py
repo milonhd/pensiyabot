@@ -586,11 +586,6 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
-@dp.callback_query()
-async def debug_handler(call: types.CallbackQuery):
-    print(f"Получен callback: {call.data}")
-    await call.answer(f"Бот получил: {call.data}", show_alert=True)
-
 async def main():
     # Инициализация базы данных при запуске
     await init_db()
