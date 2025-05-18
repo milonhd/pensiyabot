@@ -7,6 +7,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
+from db import SessionLocal, Access
+from db import init_db
 
 API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
@@ -428,10 +430,22 @@ async def approve_user(call: types.CallbackQuery):
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
 
+async def add_user(user_id: int):
+    async with SessionLocal() as session:
+        async with session.begin():
+            user = await session.get(Access, user_id)
+            if not user:
+                session.add(Access(user_id=user_id))
+
+async def check_access(user_id: int) -> bool:
+    async with SessionLocal() as session:
+        user = await session.get(Access, user_id)
+        return user is not None
+
 async def main():
     asyncio.create_task(check_access_periodically())
     await dp.start_polling(bot)
 
-
 if __name__ == '__main__':
+    asyncio.run(init_db())
     asyncio.run(main())
