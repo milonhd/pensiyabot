@@ -2,3 +2,5 @@ aiogram
 aiohttp
 aiopg
 psycopg2-binary
+apscheduler
+python-dotenv
