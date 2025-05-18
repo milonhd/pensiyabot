@@ -123,7 +123,7 @@ def get_self_years_keyboard():
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-        [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_receipt_{year}")]
+        [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_screenshot_{year}")]
     ])
 
 @dp.message(Command("start"))
@@ -312,7 +312,7 @@ async def handle_year_selection(call: types.CallbackQuery):
     
     await call.message.answer(text, reply_markup=get_year_buttons(year))
 
-@dp.callback_query(F.data.startswith("send_receipt_"))
+@dp.callback_query(F.data.startswith("send_screenshot_"))
 async def handle_receipt(call: types.CallbackQuery):
     year = call.data.split("_")[2]
     await set_user_access(call.from_user.id, None, year)  
@@ -327,7 +327,7 @@ async def handle_receipt(call: types.CallbackQuery):
 @dp.callback_query(
     lambda c: c.data in [
         "self", "basic", "pro", "offer",
-        "send_receipt_basic", "send_receipt_pro",  # Добавляем новые значения
+        "send_screenshot_basic", "send_screenshot_pro",  
         "get_materials", "used_link"
     ])
 async def handle_callback(call: types.CallbackQuery):
@@ -339,10 +339,10 @@ async def handle_callback(call: types.CallbackQuery):
         return
 
     if data == "basic":
-        await set_user_access(user_id, None, "basic")  # Временно сохраняем выбор
+        await set_user_access(user_id, None, "basic")  
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_receipt_basic")]
+            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_screenshot_basic")]
         ])
         await call.message.answer(
         """
@@ -371,7 +371,7 @@ async def handle_callback(call: types.CallbackQuery):
         await set_user_access(user_id, None, "pro")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_receipt_pro")]
+            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_screenshot_pro")]
         ])
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
 
