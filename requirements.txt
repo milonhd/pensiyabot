@@ -2,3 +2,4 @@ aiogram
 aiohttp
 asyncpg
 sqlalchemy
+psycopg2-binary
