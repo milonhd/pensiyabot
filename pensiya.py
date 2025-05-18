@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone="UTC")
 
 class BroadcastStates(StatesGroup):
     waiting_content = State()
@@ -704,13 +704,10 @@ async def support_command(message: types.Message):
 @dp.message(Command("broadcast"))
 async def broadcast_start(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("🚫 Доступ запрещен")
+        return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
     
-    # Клавиатура с кнопкой отмены
     cancel_kb = ReplyKeyboardBuilder()
     cancel_kb.button(text="❌ Отменить рассылку")
-    cancel_kb.adjust(1)
-    
     await message.answer(
         "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
         reply_markup=cancel_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
@@ -719,7 +716,7 @@ async def broadcast_start(message: types.Message, state: FSMContext):
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    if message.text and message.text == "❌ Отменить рассылку":
+    if message.text == "❌ Отменить рассылку":
         await state.clear()
         return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
     
@@ -730,20 +727,16 @@ async def process_content(message: types.Message, state: FSMContext):
         'document': message.document.file_id if message.document else None
     }
     
-    if not content['text'] and not content['photo'] and not content['video'] and not content['document']:
-        await message.answer("❌ Сообщение не может быть пустым")
-        return
+    if not any(content.values()):
+        return await message.answer("❌ Сообщение не может быть пустым")
     
     await state.update_data(content=content)
     
-    # Клавиатура подтверждения
     confirm_kb = ReplyKeyboardBuilder()
     confirm_kb.button(text="✅ Подтвердить рассылку")
     confirm_kb.button(text="⏰ Запланировать время")
     confirm_kb.button(text="❌ Отменить")
-    confirm_kb.adjust(2)
     
-    # Отправляем предпросмотр
     preview_text = "📋 Предпросмотр рассылки:\n\n" + content['text']
     try:
         if content['photo']:
@@ -756,8 +749,7 @@ async def process_content(message: types.Message, state: FSMContext):
             await message.answer(preview_text)
     except Exception as e:
         logger.error(f"Ошибка предпросмотра: {e}")
-        await message.answer("❌ Ошибка при создании предпросмотра")
-        return
+        return await message.answer("❌ Ошибка при создании предпросмотра")
     
     await message.answer(
         "Выберите действие:",
@@ -777,8 +769,6 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         time_kb.button(text="Через 3 часа")
         time_kb.button(text="Завтра в это время")
         time_kb.button(text="❌ Отменить")
-        time_kb.adjust(2)
-        
         await message.answer(
             "⏳ Выберите время отправки или введите в формате ЧЧ:ММ (например 15:30):",
             reply_markup=time_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
@@ -790,7 +780,7 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         await send_broadcast(message, state)
         return
     
-    await message.answer("Пожалуйста, используйте кнопки для выбора действия", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Пожалуйста, используйте кнопки для выбора действия")
 
 @dp.message(BroadcastStates.waiting_time)
 async def schedule_broadcast(message: types.Message, state: FSMContext):
@@ -888,9 +878,14 @@ async def main():
     # Запуск периодической проверки доступов
     asyncio.create_task(check_access_periodically())
 
+async def on_shutdown():
+    scheduler.shutdown()
+    await bot.session.close()
+
 if __name__ == '__main__':
     dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
     try:
         asyncio.run(dp.start_polling(bot))
-    finally:
-        scheduler.shutdown()
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped")
