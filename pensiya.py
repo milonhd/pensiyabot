@@ -2,12 +2,18 @@ import logging
 import time
 import asyncio
 import os
+import aiopg
+from datetime import datetime, timedelta
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from aiogram import F
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
-import aiopg
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 
 # Конфигурация для PostgreSQL
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -19,9 +25,16 @@ API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
+scheduler = AsyncIOScheduler()
+
+class BroadcastStates(StatesGroup):
+    waiting_content = State()
+    waiting_confirm = State()
+    waiting_time = State()
 
 # Подключение к базе данных
 async def create_pool():
@@ -52,7 +65,15 @@ async def set_user_access(user_id, expire_time, tariff):
             INSERT INTO user_access (user_id, expire_time, tariff)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO UPDATE 
-            SET expire_time = EXCLUDED.expire_time, tariff = EXCLUDED.tariff
+            SET 
+                expire_time = CASE 
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
+                    ELSE user_access.expire_time 
+                END,
+                tariff = CASE 
+                    WHEN user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
+                    ELSE user_access.tariff 
+                END
             """, (user_id, expire_time, tariff))
     pool.close()
     await pool.wait_closed()
@@ -75,6 +96,21 @@ async def delete_user_access(user_id):
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("DELETE FROM user_access WHERE user_id = %s", (user_id,))
+    pool.close()
+    await pool.wait_closed()
+
+async def init_db():
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # Добавляем новые поля в существующую таблицу
+            await cur.execute("""
+                ALTER TABLE user_access 
+                ADD COLUMN IF NOT EXISTS username VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS first_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()
+            """)
     pool.close()
     await pool.wait_closed()
 
@@ -102,8 +138,43 @@ async def get_expired_users():
     await pool.wait_closed()
     return result
 
+async def save_user(user: types.User):
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                INSERT INTO user_access (user_id, username, first_name, last_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE 
+                SET 
+                    username = EXCLUDED.username,
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name
+            """, (user.id, user.username, user.first_name, user.last_name))
+    pool.close()
+    await pool.wait_closed()
 
-# Кнопки (не изменены)
+async def get_all_users():
+    pool = await create_pool()
+    users = []
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT user_id FROM user_access")
+            rows = await cur.fetchall()
+            users = [row[0] for row in rows]
+    pool.close()
+    await pool.wait_closed()
+    return users
+
+async def set_commands():
+    commands = [
+        types.BotCommand(command="/support", description="📞 Поддержка"),
+        types.BotCommand(command="/offer", description="📄 Публичная оферта"),
+        types.BotCommand(command="/broadcast", description="📢 Рассылка"),
+    ]
+    await bot.set_my_commands(commands)
+    
+# Кнопки 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
@@ -128,6 +199,7 @@ def get_year_buttons(year):
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
+    await save_user(message.from_user)
     user = message.from_user
     name = user.first_name or "Пользователь"
     
@@ -631,43 +703,63 @@ async def support_command(message: types.Message):
 @dp.message(Command("broadcast"))
 async def broadcast_start(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("🚫 Доступ запрещен")
+        return await message.answer("🚫 Доступ запрещен", reply_markup=ReplyKeyboardRemove())
+    
+    # Клавиатура с кнопкой отмены
+    cancel_kb = ReplyKeyboardBuilder()
+    cancel_kb.button(text="❌ Отменить рассылку")
+    cancel_kb.adjust(1)
     
     await message.answer(
-        "📤 Отправьте сообщение для рассылки (текст + фото/видео):",
-        reply_markup=ReplyKeyboardRemove()
+        "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
+        reply_markup=cancel_kb.as_markup(resize_keyboard=True)
     )
     await state.set_state(BroadcastStates.waiting_content)
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
+    if message.text == "❌ Отменить рассылку":
+        await state.clear()
+        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+    
     content = {
-        'text': message.html_text,
+        'text': message.html_text if message.text else message.caption if message.caption else "",
         'photo': message.photo[-1].file_id if message.photo else None,
         'video': message.video.file_id if message.video else None
     }
     
-    # Предпросмотр
-    preview = "📋 Предпросмотр рассылки:\n\n" + content['text']
-    if content['photo']:
-        await message.answer_photo(content['photo'], caption=preview)
-    elif content['video']:
-        await message.answer_video(content['video'], caption=preview)
-    else:
-        await message.answer(preview)
+    if not content['text'] and not content['photo'] and not content['video']:
+        await message.answer("❌ Сообщение не может быть пустым")
+        return
     
-    # Кнопки действий
-    builder = ReplyKeyboardBuilder()
-    builder.button(text="🚀 Отправить сейчас")
-    builder.button(text="⏰ Запланировать")
-    builder.button(text="❌ Отменить")
-    builder.adjust(2)
+    # Сохраняем контент
+    await state.update_data(content=content)
+    
+    # Клавиатура подтверждения
+    confirm_kb = ReplyKeyboardBuilder()
+    confirm_kb.button(text="✅ Подтвердить рассылку")
+    confirm_kb.button(text="⏰ Запланировать время")
+    confirm_kb.button(text="❌ Отменить")
+    confirm_kb.adjust(2)
+    
+    # Отправляем предпросмотр
+    preview_text = "📋 Предпросмотр рассылки:\n\n" + content['text']
+    try:
+        if content['photo']:
+            await message.answer_photo(content['photo'], caption=preview_text)
+        elif content['video']:
+            await message.answer_video(content['video'], caption=preview_text)
+        else:
+            await message.answer(preview_text)
+    except Exception as e:
+        logger.error(f"Ошибка предпросмотра: {e}")
+        await message.answer("❌ Ошибка при создании предпросмотра")
+        return
     
     await message.answer(
         "Выберите действие:",
-        reply_markup=builder.as_markup(resize_keyboard=True)
+        reply_markup=confirm_kb.as_markup(resize_keyboard=True)
     )
-    await state.update_data(content=content)
     await state.set_state(BroadcastStates.waiting_confirm)
 
 @dp.message(BroadcastStates.waiting_confirm)
@@ -676,35 +768,56 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         await state.clear()
         return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
     
-    if message.text == "⏰ Запланировать":
+    if message.text == "⏰ Запланировать время":
+        time_kb = ReplyKeyboardBuilder()
+        time_kb.button(text="Через 1 час")
+        time_kb.button(text="Через 3 часа")
+        time_kb.button(text="Завтра в это время")
+        time_kb.button(text="❌ Отменить")
+        time_kb.adjust(2)
+        
         await message.answer(
-            "⏳ Введите время отправки в формате ЧЧ:ММ (например 15:30):",
-            reply_markup=ReplyKeyboardRemove()
+            "⏳ Выберите время отправки или введите в формате ЧЧ:ММ (например 15:30):",
+            reply_markup=time_kb.as_markup(resize_keyboard=True)
         )
         await state.set_state(BroadcastStates.waiting_time)
         return
     
-    await send_broadcast(message, state)
+    if message.text == "✅ Подтвердить рассылку":
+        await send_broadcast(message, state)
+        return
+    
+    await message.answer("Пожалуйста, используйте кнопки для выбора действия")
 
 @dp.message(BroadcastStates.waiting_time)
 async def schedule_broadcast(message: types.Message, state: FSMContext):
+    if message.text == "❌ Отменить":
+        await state.clear()
+        return await message.answer("❌ Рассылка отменена", reply_markup=ReplyKeyboardRemove())
+    
     try:
-        send_time = datetime.strptime(message.text, "%H:%M").replace(
-            year=datetime.now().year,
-            month=datetime.now().month,
-            day=datetime.now().day
-        )
+        if message.text == "Через 1 час":
+            send_time = datetime.now() + timedelta(hours=1)
+        elif message.text == "Через 3 часа":
+            send_time = datetime.now() + timedelta(hours=3)
+        elif message.text == "Завтра в это время":
+            send_time = datetime.now() + timedelta(days=1)
+        else:
+            send_time = datetime.strptime(message.text, "%H:%M").replace(
+                year=datetime.now().year,
+                month=datetime.now().month,
+                day=datetime.now().day
+            )
+            if send_time < datetime.now():
+                send_time += timedelta(days=1)
         
-        if send_time < datetime.now():
-            send_time += timedelta(days=1)
-            
         data = await state.get_data()
         scheduler.add_job(
             execute_scheduled_broadcast,
             'date',
             run_date=send_time,
             args=[data['content']],
-            id=f"broadcast_{send_time.timestamp()}"
+            id=f"broadcast_{int(send_time.timestamp())}"
         )
         
         await message.answer(
@@ -714,7 +827,7 @@ async def schedule_broadcast(message: types.Message, state: FSMContext):
         await state.clear()
         
     except ValueError:
-        await message.answer("❌ Неверный формат времени. Используйте ЧЧ:ММ")
+        await message.answer("❌ Неверный формат времени. Используйте ЧЧ:ММ или выберите вариант из кнопок")
 
 async def send_broadcast(message: types.Message, state: FSMContext):
     data = await state.get_data()
