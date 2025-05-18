@@ -314,15 +314,46 @@ async def handle_year_selection(call: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("send_screenshot_"))
 async def handle_screenshot(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    expire_time, current_tariff = await get_user_access(user_id)
+    
+    # Проверяем есть ли активный доступ
+    if expire_time and expire_time > time.time():
+        await call.answer("❗ У вас уже есть активный доступ!", show_alert=True)
+        return
+    
     year = call.data.split("_")[2]
-    await set_user_access(call.from_user.id, None, year)  
+    await set_user_access(user_id, None, year)
     await call.message.answer(
-       f"📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
+        f"📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
         "📌 Как получить чек:\n"
         "1. После оплаты в Kaspi нажмите «Показать чек об оплате»\n"
         "2. Нажмите «Поделиться»\n"
         "3. Отправьте чек в этот чат\n\n"
     )
+
+# Обновляем функцию set_user_access
+async def set_user_access(user_id, expire_time, tariff):
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # Не перезаписываем существующий активный доступ
+            await cur.execute("""
+            INSERT INTO user_access (user_id, expire_time, tariff)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE 
+            SET 
+                expire_time = CASE 
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
+                    ELSE user_access.expire_time 
+                END,
+                tariff = CASE 
+                    WHEN user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
+                    ELSE user_access.tariff 
+                END
+            """, (user_id, expire_time, tariff))
+    pool.close()
+    await pool.wait_closed()
 
 @dp.callback_query(
     lambda c: c.data in [
