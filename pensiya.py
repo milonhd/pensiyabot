@@ -617,6 +617,19 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
+@dp.message(Command("support"))
+async def support_command(message: types.Message):
+    support_msg = """
+📞 <b>Служба поддержки</b>
+
+По всем вопросам обращайтесь:
+👉 WhatsApp: <a href="https://wa.me/77754850900">+7 775 485 09 00</a>
+⏰ Часы работы: Пн-Пт, 12:00-22:00
+
+Мы ответим в течение 15 минут в рабочее время!
+    """
+    await message.answer(support_msg, parse_mode="HTML")
+
 async def main():
     # Инициализация базы данных при запуске
     await init_db()
