@@ -283,8 +283,8 @@ async def handle_callback(call: types.CallbackQuery):
             await call.message.answer("⚠️ Ошибка при отправке файла: " + str(e))
     
     elif data == "get_materials":
-    if user_id not in user_access or user_access[user_id] < time.time():
-        return await call.message.answer("❌ У вас нет активного доступа.")
+        if user_id not in user_access or user_access[user_id] < time.time():
+            return await call.message.answer("❌ У вас нет активного доступа.")
 
     tariff = user_tariffs.get(user_id)
 
