@@ -123,7 +123,7 @@ def get_self_years_keyboard():
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-        [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data=f"send_screenshot_{year}")]
+        [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_screenshot_{year}")]
     ])
 
 @dp.message(Command("start"))
@@ -152,7 +152,7 @@ async def cmd_start(message: types.Message):
                 "*БАЗОВЫЙ* — 50 000 тг\n"
                 "*ПРО* — 250 000 тг\n\n"
 
-                "Ты можешь оплатить прямо здесь и отправить скриншот оплаты. После этого администратор активирует тебе доступ, и появится кнопка *ПОЛУЧИТЬ МАТЕРИАЛЫ*.\n\n"
+                "Ты можешь оплатить прямо здесь и отправить чек оплаты. После этого администратор активирует тебе доступ, и появится кнопка *ПОЛУЧИТЬ МАТЕРИАЛЫ*.\n\n"
 
                 "Ты не один — давай разбираться вместе!\n"
                 "Выбирай уровень, чтобы начать."
@@ -312,12 +312,17 @@ async def handle_year_selection(call: types.CallbackQuery):
     
     await call.message.answer(text, reply_markup=get_year_buttons(year))
 
-@dp.callback_query(lambda c: c.data.startswith("send_screenshot_"))
-async def handle_year_screenshot(call: types.CallbackQuery):
+@dp.callback_query(lambda c: c.data.startswith("send_receipt_"))
+async def handle_year_receipt(call: types.CallbackQuery):
     year = call.data.split("_")[2]
-    # Сохраняем выбранный тариф в базе данных как "temp_tariff"
     await set_user_access(call.from_user.id, None, year)  
-    await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
+    await call.message.answer(
+        "📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi.\n\n"
+        "Как получить чек:\n"
+        "1. После оплаты в Kaspi нажмите 'Показать чек об оплате'\n"
+        "2. Нажмите 'Поделиться'\n"
+        "3. Отправьте чек в этот чат"
+    )
 
 @dp.callback_query(
     lambda c: c.data in ["self", "basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
@@ -437,26 +442,39 @@ async def handle_callback(call: types.CallbackQuery):
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
 
-@dp.message(lambda msg: msg.photo)
-async def handle_photo(message: types.Message):
+@dp.message(F.document)
+async def handle_document(message: types.Message):
     user = message.from_user
     _, tariff = await get_user_access(user.id)
+    
+    # Проверяем что это PDF файл
+    if not message.document.mime_type == 'application/pdf':
+        return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
     
     if not tariff:
         tariff = "не выбран"
         
     info = (
-        f"📸 Скриншот от пользователя:\n"
+        f"📄 Фискальный чек от пользователя:\n"
         f"🆔 ID: {user.id}\n"
         f"👤 Username: @{user.username if user.username else 'Без username'}\n"
-        f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}"
+        f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}\n"
+        f"📝 Файл: {message.document.file_name}"
     )
-    await message.answer(f"Спасибо за скриншот! Вы выбрали уровень: {tariff.upper()}")
+    
+    await message.answer(f"Спасибо за чек! Вы выбрали уровень: {tariff.upper()}")
+    
+    # Отправляем админу
     approve_button = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Выдать доступ", callback_data=f"approve_{user.id}")]
     ])
+    
     await bot.send_message(ADMIN_ID, info, reply_markup=approve_button)
-    await bot.send_photo(chat_id=ADMIN_ID, photo=message.photo[-1].file_id, caption="Скриншот оплаты")
+    await bot.send_document(
+        chat_id=ADMIN_ID, 
+        document=message.document.file_id, 
+        caption=f"Чек оплаты от {user.first_name or 'пользователя'}"
+    )
 
 # Удаление сообщений о входе новых участников
 @dp.message(F.new_chat_members)
