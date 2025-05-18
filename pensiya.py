@@ -395,19 +395,29 @@ async def handle_callback(call: types.CallbackQuery):
         if not chat_id:
             return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
 
-        link = await get_personal_invite(chat_id)
-        if link:
-            await call.message.answer(f"🔗 Ваша персональная ссылка для входа:\n{link}")
-        else:
-            await call.message.answer("⚠️ Ошибка при создании ссылки.")
-
-async def get_personal_invite(chat_id: int) -> str:
-    try:
-        invite_link = await bot.create_chat_invite_link(chat_id=chat_id, member_limit=1, creates_join_request=False)
-        return invite_link.invite_link
+        try:
+        # Создаем временную ссылку (15 секунд)
+        invite = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            member_limit=1,
+            expire_date=datetime.now() + timedelta(seconds=15)
+        )
+        
+        # Отправляем сообщение со ссылкой
+        msg = await call.message.answer(
+            f"🔐 Ваша персональная ссылка:\n{invite.invite_link}"
+        )
+        
+        # Удаляем сообщение через 15 секунд
+        await asyncio.sleep(15)
+        try:
+            await msg.delete()
+        except Exception as e:
+            logging.error(f"Не удалось удалить сообщение: {e}")
+            
     except Exception as e:
-        logging.error(f"Не удалось создать ссылку для чата {chat_id}: {e}")
-        return None
+        logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
+        await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
