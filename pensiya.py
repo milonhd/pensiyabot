@@ -313,7 +313,7 @@ async def handle_year_selection(call: types.CallbackQuery):
     await call.message.answer(text, reply_markup=get_year_buttons(year))
 
 @dp.callback_query(lambda c: c.data.startswith("send_receipt_"))
-async def handle_year_receipt(call: types.CallbackQuery):
+async def handle_receipt(call: types.CallbackQuery):
     year = call.data.split("_")[2]
     await set_user_access(call.from_user.id, None, year)  
     await call.message.answer(
