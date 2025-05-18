@@ -734,7 +734,6 @@ async def process_content(message: types.Message, state: FSMContext):
     
     confirm_kb = ReplyKeyboardBuilder()
     confirm_kb.button(text="✅ Подтвердить рассылку")
-    confirm_kb.button(text="⏰ Запланировать время")
     confirm_kb.button(text="❌ Отменить")
     
     preview_text = "📋 Предпросмотр рассылки:\n\n" + content['text']
@@ -763,123 +762,111 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         await state.clear()
         return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
     
-    if message.text == "⏰ Запланировать время":
-        time_kb = ReplyKeyboardBuilder()
-        time_kb.button(text="Через 1 час")
-        time_kb.button(text="Через 3 часа")
-        time_kb.button(text="Завтра в это время")
-        time_kb.button(text="❌ Отменить")
-        await message.answer(
-            "⏳ Выберите время отправки или введите в формате ЧЧ:ММ (например 15:30):",
-            reply_markup=time_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
-        )
-        await state.set_state(BroadcastStates.waiting_time)
-        return
-    
     if message.text == "✅ Подтвердить рассылку":
         await send_broadcast(message, state)
         return
     
     await message.answer("Пожалуйста, используйте кнопки для выбора действия")
 
-@dp.message(BroadcastStates.waiting_time)
-async def schedule_broadcast(message: types.Message, state: FSMContext):
-    if message.text == "❌ Отменить":
-        await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
-    
-    try:
-        # Обработка стандартных вариантов
-        if message.text == "Через 1 час":
-            send_time = datetime.now() + timedelta(hours=1)
-        elif message.text == "Через 3 часа":
-            send_time = datetime.now() + timedelta(hours=3)
-        elif message.text == "Завтра в это время":
-            send_time = datetime.now() + timedelta(days=1)
-        else:
-            # Обработка ручного ввода
-            try:
-                if ':' not in message.text:
-                    raise ValueError
-                
-                time_parts = message.text.split(':')
-                if len(time_parts) != 2:
-                    raise ValueError
-                
-                hours, minutes = map(int, time_parts)
-                
-                if not (0 <= hours < 24 and 0 <= minutes < 60):
-                    await message.answer("❌ Время должно быть в диапазоне:\nЧасы: 00-23\nМинуты: 00-59")
-                    return
-                
-                send_time = datetime.now().replace(
-                    hour=hours,
-                    minute=minutes,
-                    second=0,
-                    microsecond=0
-                )
-                
-                if send_time < datetime.now():
-                    send_time += timedelta(days=1)
-                    
-            except ValueError:
-                error_msg = (
-                    "❌ Неверный формат времени.\n\n"
-                    "Пожалуйста, введите время в формате ЧЧ:ММ (например 15:30) или выберите один из вариантов:\n"
-                    "- Через 1 час\n"
-                    "- Через 3 часа\n"
-                    "- Завтра в это время"
-                )
-                await message.answer(error_msg)
-                return
-
-        data = await state.get_data()
-        scheduler.add_job(
-            execute_scheduled_broadcast,
-            'date',
-            run_date=send_time,
-            args=[data['content']],
-            id=f"broadcast_{int(send_time.timestamp())}"
-        )
-        
-        await message.answer(
-            f"✅ Рассылка запланирована на {send_time.strftime('%d.%m.%Y %H:%M')}",
-            reply_markup=types.ReplyKeyboardRemove()
-        )
-        await state.clear()
-        
-    except Exception as e:
-        logger.error(f"Ошибка планирования: {e}")
-        await message.answer("❌ Произошла ошибка при планировании рассылки")
-
 async def send_broadcast(message: types.Message, state: FSMContext):
+    # Получаем данные из состояния
     data = await state.get_data()
+    if 'content' not in data:
+        await message.answer("❌ Ошибка: данные рассылки не найдены", reply_markup=types.ReplyKeyboardRemove())
+        await state.clear()
+        return
+    
+    # Получаем список всех пользователей
     users = await get_all_users()
+    if not users:
+        await message.answer("❌ Нет пользователей для рассылки", reply_markup=types.ReplyKeyboardRemove())
+        await state.clear()
+        return
+    
+    # Отправляем сообщение о начале рассылки
+    progress_msg = await message.answer("🔄 Начинаем рассылку...")
     
     success = 0
     errors = 0
+    total_users = len(users)
     
-    for user_id in users:
+    # Отправляем сообщения с прогресс-баром
+    for index, user_id in enumerate(users, 1):
         try:
-            if data['content']['photo']:
-                await bot.send_photo(user_id, data['content']['photo'], caption=data['content']['text'])
-            elif data['content']['video']:
-                await bot.send_video(user_id, data['content']['video'], caption=data['content']['text'])
-            elif data['content']['document']:
-                await bot.send_document(user_id, data['content']['document'], caption=data['content']['text'])
+            content = data['content']
+            
+            # Отправка в зависимости от типа контента
+            if content.get('photo'):
+                await bot.send_photo(
+                    chat_id=user_id,
+                    photo=content['photo'],
+                    caption=content.get('text', ''),
+                    parse_mode='HTML'
+                )
+            elif content.get('video'):
+                await bot.send_video(
+                    chat_id=user_id,
+                    video=content['video'],
+                    caption=content.get('text', ''),
+                    parse_mode='HTML'
+                )
+            elif content.get('document'):
+                await bot.send_document(
+                    chat_id=user_id,
+                    document=content['document'],
+                    caption=content.get('text', ''),
+                    parse_mode='HTML'
+                )
             else:
-                await bot.send_message(user_id, data['content']['text'])
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=content.get('text', ''),
+                    parse_mode='HTML'
+                )
+            
             success += 1
+            
+            # Обновляем прогресс каждые 10 сообщений или для последнего сообщения
+            if index % 10 == 0 or index == total_users:
+                progress = int(index / total_users * 100)
+                await progress_msg.edit_text(
+                    f"🔄 Рассылка в процессе...\n"
+                    f"📊 Прогресс: {progress}%\n"
+                    f"✅ Успешно: {success}\n"
+                    f"❌ Ошибок: {errors}"
+                )
+                
         except Exception as e:
-            logger.error(f"Ошибка отправки пользователю {user_id}: {str(e)}")
             errors += 1
+            logger.error(f"Ошибка отправки пользователю {user_id}: {str(e)}")
+            
+            # Делаем небольшую паузу при ошибках, чтобы не получить flood control
+            await asyncio.sleep(1)
     
-    await message.answer(
-        f"📊 Рассылка завершена:\n\n"
-        f"✅ Успешно: {success}\n"
-        f"❌ Ошибок: {errors}",
-        reply_markup=ReplyKeyboardRemove()
+    # Удаляем сообщение о прогрессе
+    try:
+        await progress_msg.delete()
+    except:
+        pass
+    
+    # Отправляем финальный отчет
+    report_message = (
+        f"📊 Рассылка завершена!\n\n"
+        f"👥 Всего пользователей: {total_users}\n"
+        f"✅ Успешно отправлено: {success}\n"
+        f"❌ Ошибок: {errors}\n"
+        f"📈 Успешных доставок: {int(success/total_users*100)}%"
     )
+
+            if index % 20 == 0:  # Делаем паузу каждые 20 сообщений
+                await asyncio.sleep(1)
+
+            except aiogram.exceptions.RetryAfter as e:
+                # Если Telegram просит подождать из-за flood control
+                await asyncio.sleep(e.timeout)
+                continue
+    
+    await message.answer(report_message, reply_markup=types.ReplyKeyboardRemove())
     await state.clear()
 
 async def execute_scheduled_broadcast(content: dict):
