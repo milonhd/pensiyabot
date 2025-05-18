@@ -165,7 +165,17 @@ async def get_all_users():
     pool.close()
     await pool.wait_closed()
     return users
-    
+
+async def set_commands():
+    commands = [
+        types.BotCommand(command="start", description="Главное меню"),
+        types.BotCommand(command="support", description="Связь с поддержкой"),
+        types.BotCommand(command="offer", description="Публичная оферта"),
+    ]
+    if ADMIN_ID:
+        commands.append(types.BotCommand(command="broadcast", description="Рассылка (админ)"))
+    await bot.set_my_commands(commands)
+
 # Кнопки 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
