@@ -714,38 +714,37 @@ async def handle_support_button(message: types.Message):
     await message.answer(support_msg, parse_mode="HTML")
 
 @dp.message(F.text == "📢 Рассылка")
-async def handle_broadcast_button(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
-        return
-    
-    cancel_kb = ReplyKeyboardBuilder()
-    cancel_kb.button(text="❌ Отменить рассылку")
-    await message.answer(
-        "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
-        reply_markup=cancel_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
-    )
-    await state.set_state(BroadcastStates.waiting_content)
-
 @dp.message(Command("broadcast"))
-async def broadcast_start(message: types.Message, state: FSMContext):
+async def start_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
     
     cancel_kb = ReplyKeyboardBuilder()
     cancel_kb.button(text="❌ Отменить рассылку")
+    cancel_kb.button(text="◀️ Главное меню")
+    cancel_kb.adjust(2)
+    
     await message.answer(
         "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
-        reply_markup=cancel_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
+        reply_markup=cancel_kb.as_markup(resize_keyboard=True)
     )
     await state.set_state(BroadcastStates.waiting_content)
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    if message.text == "❌ Отменить":
+    # Обработка отмены
+    if message.text in ["❌ Отменить рассылку", "❌ Отменить"]:
         await state.clear()
-        return await message.answer("❌ Рассылка отменена")
-        await back_to_main(message)
+        await show_main_menu(message)
+        return
     
+    # Обработка возврата в главное меню
+    if message.text == "◀️ Главное меню":
+        await state.clear()
+        await show_main_menu(message)
+        return
+    
+    # Обработка контента
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
         'photo': message.photo[-1].file_id if message.photo else None,
@@ -761,6 +760,7 @@ async def process_content(message: types.Message, state: FSMContext):
     confirm_kb = ReplyKeyboardBuilder()
     confirm_kb.button(text="✅ Подтвердить рассылку")
     confirm_kb.button(text="❌ Отменить")
+    confirm_kb.adjust(2)
     
     preview_text = "📋 Предпросмотр рассылки:\n\n" + content['text']
     try:
@@ -778,23 +778,15 @@ async def process_content(message: types.Message, state: FSMContext):
     
     await message.answer(
         "Выберите действие:",
-        reply_markup=confirm_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
+        reply_markup=confirm_kb.as_markup(resize_keyboard=True)
     )
     await state.set_state(BroadcastStates.waiting_confirm)
 
 @dp.message(BroadcastStates.waiting_confirm)
 async def confirm_broadcast(message: types.Message, state: FSMContext):
     if message.text == "❌ Отменить":
-        # Возвращаем основное меню
-        main_kb = ReplyKeyboardBuilder()
-        main_kb.button(text="📄 Публичная оферта")
-        main_kb.button(text="📞 Поддержка")
-        main_kb.button(text="📢 Рассылка")
-        main_kb.adjust(2)
-        
-        await message.answer("❌ Рассылка отменена", 
-                           reply_markup=main_kb.as_markup(resize_keyboard=True))
         await state.clear()
+        await show_main_menu(message, "❌ Рассылка отменена")
         return
     
     if message.text == "✅ Подтвердить рассылку":
@@ -802,6 +794,21 @@ async def confirm_broadcast(message: types.Message, state: FSMContext):
         return
     
     await message.answer("Пожалуйста, используйте кнопки для выбора действия")
+
+async def show_main_menu(message: types.Message, text: str = None):
+    main_kb = ReplyKeyboardBuilder()
+    main_kb.button(text="📄 Публичная оферта")
+    main_kb.button(text="📞 Поддержка")
+    
+    if message.from_user.id == ADMIN_ID:
+        main_kb.button(text="📢 Рассылка")
+    
+    main_kb.adjust(2)
+    
+    if text:
+        await message.answer(text, reply_markup=main_kb.as_markup(resize_keyboard=True))
+    else:
+        await message.answer("Главное меню:", reply_markup=main_kb.as_markup(resize_keyboard=True))
 
 async def send_broadcast(message: types.Message, state: FSMContext):
     # Получаем данные из состояния
