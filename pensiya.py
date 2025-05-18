@@ -743,7 +743,8 @@ async def broadcast_start(message: types.Message, state: FSMContext):
 async def process_content(message: types.Message, state: FSMContext):
     if message.text == "❌ Отменить рассылку":
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
+        return await message.answer("❌ Рассылка отменена", reply_markup=builder.as_markup(resize_keyboard=True,
+            one_time_keyboard=False))
     
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
