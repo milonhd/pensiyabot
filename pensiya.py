@@ -7,8 +7,13 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
-from db import SessionLocal, Access
-from db import init_db
+import aiopg
+
+# Конфигурация для PostgreSQL
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    # Локальная конфигурация для тестирования
+    DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
 
 API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
@@ -18,10 +23,86 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-user_access = {}
-user_tariffs = {}
+# Подключение к базе данных
+async def create_pool():
+    return await aiopg.create_pool(DATABASE_URL)
 
-# Кнопки
+# Создание таблиц (если они еще не созданы)
+async def init_db():
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # Таблица для хранения доступов пользователей
+            await cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_access (
+                user_id BIGINT PRIMARY KEY,
+                expire_time BIGINT,
+                tariff VARCHAR(20)
+            )
+            """)
+    pool.close()
+    await pool.wait_closed()
+
+# Функции для работы с базой данных
+async def set_user_access(user_id, expire_time, tariff):
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+            INSERT INTO user_access (user_id, expire_time, tariff)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE 
+            SET expire_time = EXCLUDED.expire_time, tariff = EXCLUDED.tariff
+            """, (user_id, expire_time, tariff))
+    pool.close()
+    await pool.wait_closed()
+
+async def get_user_access(user_id):
+    pool = await create_pool()
+    result = None, None
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT expire_time, tariff FROM user_access WHERE user_id = %s", (user_id,))
+            row = await cur.fetchone()
+            if row:
+                result = row[0], row[1]
+    pool.close()
+    await pool.wait_closed()
+    return result
+
+async def delete_user_access(user_id):
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("DELETE FROM user_access WHERE user_id = %s", (user_id,))
+    pool.close()
+    await pool.wait_closed()
+
+async def get_all_active_users():
+    pool = await create_pool()
+    result = []
+    current_time = time.time()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT user_id, expire_time, tariff FROM user_access WHERE expire_time > %s", (current_time,))
+            result = await cur.fetchall()
+    pool.close()
+    await pool.wait_closed()
+    return result
+
+async def get_expired_users():
+    pool = await create_pool()
+    result = []
+    current_time = time.time()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT user_id, tariff FROM user_access WHERE expire_time <= %s", (current_time,))
+            result = await cur.fetchall()
+    pool.close()
+    await pool.wait_closed()
+    return result
+
+# Кнопки (не изменены)
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
@@ -49,11 +130,12 @@ async def cmd_start(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.")
     else:
-        if message.from_user.id in user_access and user_access[message.from_user.id] > time.time():
+        expire_time, _ = await get_user_access(message.from_user.id)
+        if expire_time and expire_time > time.time():
             await message.answer("У вас уже есть доступ.", reply_markup=materials_keyboard)
         else:
             welcome_text = (
-                "👋 *Добро пожаловать в бот “СВОЯ ПЕНСИЯ”* – твой персональный помощник на пути к достойной пенсии!\n"
+                "👋 *Добро пожаловать в бот "СВОЯ ПЕНСИЯ"* – твой персональный помощник на пути к достойной пенсии!\n"
                 "Здесь ты найдёшь всё, чтобы понимать на какую пенсию ты можешь рассчитывать, как её увеличить и какие выплаты тебе положены именно в твоей ситуации. "
                 "Получишь алгоритм расчета пенсии применительный к твоей ситуации.\n\n"
 
@@ -87,16 +169,15 @@ async def grant_access(message: types.Message):
         if tariff not in ["basic", "pro"] + [str(y) for y in range(2025, 2032)]:
             return await message.answer("Тариф должен быть 'basic', 'pro' или '2025'-'2031'.")
 
-        user_tariffs[user_id] = tariff
-
         if tariff == "basic":
             duration = 30 * 24 * 60 * 60
         elif tariff == "pro":
             duration = 60 * 24 * 60 * 60
         else:
-            duration = 30
+            duration = 7 * 24 * 60 * 60  
 
-        user_access[user_id] = time.time() + duration
+        expire_time = time.time() + duration
+        await set_user_access(user_id, expire_time, tariff)
 
         await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {duration // 86400} дней.")
         await bot.send_message(
@@ -120,10 +201,11 @@ async def revoke_access(message: types.Message):
 
     try:
         user_id = int(args[1])
-        if user_id in user_access:
+        expire_time, _ = await get_user_access(user_id)
+        
+        if expire_time:
             # Удаляем доступ
-            del user_access[user_id]
-            user_tariffs.pop(user_id, None)
+            await delete_user_access(user_id)
 
             # Уведомление для пользователя
             await bot.send_message(user_id, "❌ Ваш доступ был отозван. Теперь вы не можете получать материалы.")
@@ -150,10 +232,11 @@ async def check_status(message: types.Message):
 
     try:
         user_id = int(args[1])
-        if user_id in user_access and user_access[user_id] > time.time():
-            remaining_seconds = user_access[user_id] - time.time()
+        expire_time, tariff = await get_user_access(user_id)
+        
+        if expire_time and expire_time > time.time():
+            remaining_seconds = expire_time - time.time()
             days = int(remaining_seconds // (24 * 60 * 60))
-            tariff = user_tariffs.get(user_id)
 
             if tariff:
                 await message.answer(
@@ -167,7 +250,7 @@ async def check_status(message: types.Message):
             await message.answer("❌ Доступа нет или он истек.")
 
     except Exception as e:
-        logging.error(f"\u041e\u0448\u0438\u0431\u043a\u0430: {e}")
+        logging.error(f"Ошибка: {e}")
         await message.answer("Ошибка при проверке статуса.")
 
 
@@ -188,11 +271,14 @@ async def help_admin(message: types.Message):
 async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
-    if not user_access:
+    
+    active_users = await get_all_active_users()
+    if not active_users:
         return await message.answer("Пока нет пользователей с доступом.")
+    
     lines = [
-        f"{uid} - до {time.ctime(exp)} ({user_tariffs.get(uid, 'неизвестно')})"
-        for uid, exp in user_access.items() if exp > time.time()
+        f"{uid} - до {time.ctime(exp)} ({tariff})"
+        for uid, exp, tariff in active_users
     ]
     await message.answer("\n".join(lines))
 
@@ -226,7 +312,8 @@ async def handle_year_selection(call: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith("send_screenshot_"))
 async def handle_year_screenshot(call: types.CallbackQuery):
     year = call.data.split("_")[2]
-    user_tariffs[call.from_user.id] = year
+    # Сохраняем выбранный тариф в базе данных как "temp_tariff"
+    await set_user_access(call.from_user.id, 0, year)  # expire_time=0 показывает, что это временный выбор
     await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
 
 @dp.callback_query(
@@ -240,7 +327,7 @@ async def handle_callback(call: types.CallbackQuery):
         return
 
     if data == "basic":
-        user_tariffs[user_id] = "basic"
+        await set_user_access(user_id, 0, "basic")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
@@ -258,7 +345,7 @@ async def handle_callback(call: types.CallbackQuery):
 🧠 Подходит тем, кто:
 – хочет разбираться в теме для себя и близких
 – планирует помогать другим (как консультант или помощник)
- – не хочет тратить время на самостоятельное изучение всех нюансов
+– не хочет тратить время на самостоятельное изучение всех нюансов
 
 ⏰ Доступ: 30 дней
 💬 Поддержка: вопрос-ответ в общем чате
@@ -269,7 +356,7 @@ async def handle_callback(call: types.CallbackQuery):
         reply_markup=keyboard)
 
     elif data == "pro":
-        user_tariffs[user_id] = "pro"
+        await set_user_access(user_id, 0, "pro")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_pro")]
@@ -285,32 +372,31 @@ async def handle_callback(call: types.CallbackQuery):
             await call.message.answer("⚠️ Ошибка при отправке файла: " + str(e))
     
     elif data == "get_materials":
-        if user_id not in user_access or user_access[user_id] < time.time():
+        expire_time, tariff = await get_user_access(user_id)
+        if not expire_time or expire_time < time.time():
             return await call.message.answer("❌ У вас нет активного доступа.")
 
-    tariff = user_tariffs.get(user_id)
+        # Сопоставление тарифов и ID групп
+        tariff_chat_map = {
+            "basic": -1002583988789,
+            "2025": -1002529607781,
+            "2026": -1002611068580,
+            "2027": -1002607289832,
+            "2028": -1002560662894,
+            "2029": -1002645685285,
+            "2030": -1002529375771,
+            "2031": -1002262602915
+        }
 
-    # Сопоставление тарифов и ID групп
-    tariff_chat_map = {
-        "basic": -1002583988789,
-        "2025": -1002529607781,
-        "2026": -1002611068580,
-        "2027": -1002607289832,
-        "2028": -1002560662894,
-        "2029": -1002645685285,
-        "2030": -1002529375771,
-        "2031": -1002262602915
-    }
+        chat_id = tariff_chat_map.get(tariff)
+        if not chat_id:
+            return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
 
-    chat_id = tariff_chat_map.get(tariff)
-    if not chat_id:
-        return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
-
-    link = await get_personal_invite(chat_id)
-    if link:
-        await call.message.answer(f"🔗 Ваша персональная ссылка для входа:\n{link}")
-    else:
-        await call.message.answer("⚠️ Ошибка при создании ссылки.")
+        link = await get_personal_invite(chat_id)
+        if link:
+            await call.message.answer(f"🔗 Ваша персональная ссылка для входа:\n{link}")
+        else:
+            await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
 async def get_personal_invite(chat_id: int) -> str:
     try:
@@ -323,7 +409,11 @@ async def get_personal_invite(chat_id: int) -> str:
 @dp.message(lambda msg: msg.photo)
 async def handle_photo(message: types.Message):
     user = message.from_user
-    tariff = user_tariffs.get(user.id, "не выбран")
+    _, tariff = await get_user_access(user.id)
+    
+    if not tariff:
+        tariff = "не выбран"
+        
     info = (
         f"📸 Скриншот от пользователя:\n"
         f"🆔 ID: {user.id}\n"
@@ -355,45 +445,45 @@ async def remove_leave_message(message: types.Message):
 
 
 # 🔁 Проверка доступа каждые 10 сек
-GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]  # список ID групп (можно получить через @userinfobot)
+GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]  # список ID групп
 
 async def check_access_periodically():
     while True:
-        current_time = time.time()
-        expired_users = [uid for uid, expire_time in user_access.items() if expire_time <= current_time]
+        try:
+            expired_users = await get_expired_users()
 
-        for user_id in expired_users:
-            tariff = user_tariffs.get(user_id, "неизвестно")
+            for user_id, tariff in expired_users:
+                # Удаление из групп
+                for group_id in GROUP_IDS:
+                    try:
+                        await bot.ban_chat_member(group_id, user_id)  # бан
+                        await bot.unban_chat_member(group_id, user_id)  # сразу разбан, чтобы можно было вернуться
+                        logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
+                    except Exception as e:
+                        logging.warning(f"Не удалось удалить пользователя {user_id} из группы {group_id}: {e}")
 
-            # Удаление из групп
-            for group_id in GROUP_IDS:
+                # Уведомление пользователя
                 try:
-                    await bot.ban_chat_member(group_id, user_id)  # бан
-                    await bot.unban_chat_member(group_id, user_id)  # сразу разбан, чтобы можно было вернуться
-                    logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
+                    await bot.send_message(user_id, "❌ Ваш доступ истёк. Вы были удалены из группы.")
                 except Exception as e:
-                    logging.warning(f"Не удалось удалить пользователя {user_id} из группы {group_id}: {e}")
+                    logging.warning(f"Не удалось отправить уведомление пользователю {user_id}: {e}")
 
-            # Уведомление пользователя
-            try:
-                await bot.send_message(user_id, "❌ Ваш доступ истёк. Вы были удалены из группы.")
-            except:
-                pass
+                # Уведомление администратора
+                try:
+                    await bot.send_message(
+                        ADMIN_ID,
+                        f"⛔️ Пользователь {user_id} был удалён из групп, доступ истёк ({tariff})."
+                    )
+                except Exception as e:
+                    logging.warning(f"Не удалось отправить уведомление администратору: {e}")
 
-            # Уведомление администратора
-            try:
-                await bot.send_message(
-                    ADMIN_ID,
-                    f"⛔️ Пользователь {user_id} был удалён из групп, доступ истёк ({tariff})."
-                )
-            except:
-                pass
+                # Удаляем из базы данных
+                await delete_user_access(user_id)
 
-            # Очистка данных
-            user_access.pop(user_id, None)
-            user_tariffs.pop(user_id, None)
+        except Exception as e:
+            logging.error(f"Ошибка в проверке доступа: {e}")
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
 @dp.callback_query(lambda c: c.data.startswith("approve_"))
 async def approve_user(call: types.CallbackQuery):
@@ -401,7 +491,7 @@ async def approve_user(call: types.CallbackQuery):
         return await call.answer("Недостаточно прав")
 
     user_id = int(call.data.split("_")[1])
-    tariff = user_tariffs.get(user_id)
+    _, tariff = await get_user_access(user_id)
 
     if not tariff:
         return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
@@ -417,9 +507,10 @@ async def approve_user(call: types.CallbackQuery):
         return await call.answer("❌ Неизвестный тариф.")
 
     # Сохраняем
-    user_access[user_id] = time.time() + duration
+    expire_time = time.time() + duration
+    await set_user_access(user_id, expire_time, tariff)
 
-    # Лог
+    # Лог (сохраняем в файл)
     with open("access_log.txt", "a", encoding="utf-8") as f:
         f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
 
@@ -430,22 +521,13 @@ async def approve_user(call: types.CallbackQuery):
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
 
-async def add_user(user_id: int):
-    async with SessionLocal() as session:
-        async with session.begin():
-            user = await session.get(Access, user_id)
-            if not user:
-                session.add(Access(user_id=user_id))
-
-async def check_access(user_id: int) -> bool:
-    async with SessionLocal() as session:
-        user = await session.get(Access, user_id)
-        return user is not None
-
 async def main():
+    # Инициализация базы данных при запуске
+    await init_db()
+    # Запуск периодической проверки доступов
     asyncio.create_task(check_access_periodically())
+    # Запуск бота
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
-    asyncio.run(init_db())
     asyncio.run(main())
