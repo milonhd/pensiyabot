@@ -524,6 +524,18 @@ async def approve_user(call: types.CallbackQuery):
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
 
+async def check_subscriptions():
+    while True:
+        users = await get_all_active_users()
+        for user_id, expire_time, _ in users:
+            if (expire_time - time.time()) < 86400 * 3:  # За 3 дня до истечения
+                await bot.send_message(
+                    user_id,
+                    f"⚠️ Ваш доступ истекает через 3 дня!",
+                    reply_markup=main_keyboard
+                )
+        await asyncio.sleep(3600)  # Проверка каждый час
+
 async def main():
     # Инициализация базы данных при запуске
     await init_db()
