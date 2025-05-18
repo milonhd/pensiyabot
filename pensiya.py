@@ -741,10 +741,10 @@ async def broadcast_start(message: types.Message, state: FSMContext):
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    if message.text == "❌ Отменить рассылку":
+    if message.text == "❌ Отменить":
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=builder.as_markup(resize_keyboard=True,
-            one_time_keyboard=False))
+        return await message.answer("❌ Рассылка отменена")
+        await back_to_main(message)
     
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
