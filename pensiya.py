@@ -396,24 +396,24 @@ async def handle_callback(call: types.CallbackQuery):
             return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
 
         try:
-        # Создаем временную ссылку (15 секунд)
-        invite = await bot.create_chat_invite_link(
-            chat_id=chat_id,
-            member_limit=1,
-            expire_date=datetime.now() + timedelta(seconds=15)
-        )
+            # Создаем временную ссылку (15 секунд)
+            invite = await bot.create_chat_invite_link(
+                chat_id=chat_id,
+                member_limit=1,
+                expire_date=datetime.now() + timedelta(seconds=15)
+            )
         
-        # Отправляем сообщение со ссылкой
-        msg = await call.message.answer(
-            f"🔐 Ваша персональная ссылка:\n{invite.invite_link}"
-        )
-        
-        # Удаляем сообщение через 15 секунд
-        await asyncio.sleep(15)
-        try:
-            await msg.delete()
-        except Exception as e:
-            logging.error(f"Не удалось удалить сообщение: {e}")
+            # Отправляем сообщение со ссылкой
+            msg = await call.message.answer(
+                f"🔐 Ваша персональная ссылка:\n{invite.invite_link}"
+            )
+            
+            # Удаляем сообщение через 15 секунд
+            await asyncio.sleep(15)
+            try:
+                await msg.delete()
+            except Exception as e:
+                logging.error(f"Не удалось удалить сообщение: {e}")
             
     except Exception as e:
         logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
