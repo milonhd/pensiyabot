@@ -801,7 +801,7 @@ async def show_main_menu(message: types.Message, text: str = None):
     if text:
         await message.answer(text, reply_markup=main_kb.as_markup(resize_keyboard=True))
     else:
-        await message.answer("Главное меню:", reply_markup=main_kb.as_markup(resize_keyboard=True))
+        await message.answer("🏠 Главное меню:", reply_markup=main_kb.as_markup(resize_keyboard=True))
 
 async def send_broadcast(message: types.Message, state: FSMContext):
     # Получаем данные из состояния
