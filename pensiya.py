@@ -310,9 +310,6 @@ async def handle_callback(call: types.CallbackQuery):
     else:
         await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
-    elif data.startswith("send_screenshot"):
-        await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
-
 async def get_personal_invite(chat_id: int) -> str:
     try:
         invite_link = await bot.create_chat_invite_link(chat_id=chat_id, member_limit=1, creates_join_request=False)
