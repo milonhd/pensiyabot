@@ -325,7 +325,7 @@ async def handle_year_receipt(call: types.CallbackQuery):
     )
 
 @dp.callback_query(
-    lambda c: c.data in ["self", "basic", "pro", "offer", "send_screenshot_basic", "send_screenshot_pro", "get_materials"])
+    lambda c: c.data in ["self", "basic", "pro", "offer", "send_receipt_basic", "send_receipt_pro", "get_materials"])
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
@@ -338,7 +338,7 @@ async def handle_callback(call: types.CallbackQuery):
         await set_user_access(user_id, None, "basic")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-            [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
+            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_receipt_basic")]
         ])
         await call.message.answer(
         """
@@ -367,7 +367,7 @@ async def handle_callback(call: types.CallbackQuery):
         await set_user_access(user_id, None, "pro")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
-            [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_pro")]
+            [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_receipt_pro")]
         ])
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
 
