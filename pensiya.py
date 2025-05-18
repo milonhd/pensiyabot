@@ -720,8 +720,7 @@ async def start_broadcast(message: types.Message, state: FSMContext):
         return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
     
     cancel_kb = ReplyKeyboardBuilder()
-    cancel_kb.button(text="❌ Отменить рассылку")
-    cancel_kb.button(text="◀️ Главное меню")
+    cancel_kb.button(text="❌ Отменить")
     cancel_kb.adjust(2)
     
     await message.answer(
@@ -733,13 +732,7 @@ async def start_broadcast(message: types.Message, state: FSMContext):
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
     # Обработка отмены
-    if message.text in ["❌ Отменить рассылку", "❌ Отменить"]:
-        await state.clear()
-        await show_main_menu(message)
-        return
-    
-    # Обработка возврата в главное меню
-    if message.text == "◀️ Главное меню":
+    if message.text in ["❌ Отменить"]:
         await state.clear()
         await show_main_menu(message)
         return
