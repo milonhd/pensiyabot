@@ -202,13 +202,23 @@ async def cmd_start(message: types.Message):
     await save_user(message.from_user)
     user = message.from_user
     name = user.first_name or "Пользователь"
+
+    # Создаем основную клавиатуру
+    main_kb = ReplyKeyboardBuilder()
+    main_kb.button(text="📄 Публичная оферта")
+    main_kb.button(text="📞 Поддержка")
     
     if message.from_user.id == ADMIN_ID:
-        await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.")
+        main_kb.button(text="📢 Рассылка")
+    
+    main_kb.adjust(2)  # 2 кнопки в ряд
+    
+    if message.from_user.id == ADMIN_ID:
+        await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True))
     else:
         expire_time, _ = await get_user_access(message.from_user.id)
         if expire_time and expire_time > time.time():
-            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_keyboard)
+            await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_kb.as_markup(resize_keyboard=True))
         else:
             welcome_text = (
                f"👋 *Добро пожаловать, {name}, в бот «СВОЯ ПЕНСИЯ»* – твой персональный помощник на пути к достойной пенсии!\n"
@@ -229,7 +239,7 @@ async def cmd_start(message: types.Message):
                 "Ты не один — давай разбираться вместе!\n"
                 "Выбирай уровень, чтобы начать."
             )
-            await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard)
+            await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True))
 
 
 @dp.message(Command("g"))
@@ -357,8 +367,8 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
-@dp.message(Command("offer"))
-async def offer_command(message: types.Message):
+@dp.message(F.text == "📄 Публичная оферта")
+async def handle_offer_button(message: types.Message):
     pdf_path = "oferta.pdf"
     try:
         document = FSInputFile(pdf_path)
@@ -690,8 +700,8 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
-@dp.message(Command("support"))
-async def support_command(message: types.Message):
+@dp.message(F.text == "📞 Поддержка")
+async def handle_support_button(message: types.Message):
     support_msg = """
 📞 <b>Служба поддержки</b>
 
@@ -700,6 +710,19 @@ async def support_command(message: types.Message):
 ⏰ Часы работы: Пн-Пт, 12:00-22:00
     """
     await message.answer(support_msg, parse_mode="HTML")
+
+@dp.message(F.text == "📢 Рассылка")
+async def handle_broadcast_button(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    cancel_kb = ReplyKeyboardBuilder()
+    cancel_kb.button(text="❌ Отменить рассылку")
+    await message.answer(
+        "📤 Отправьте сообщение для рассылки (текст, фото или видео):",
+        reply_markup=cancel_kb.as_markup(resize_keyboard=True, one_time_keyboard=True)
+    )
+    await state.set_state(BroadcastStates.waiting_content)
 
 @dp.message(Command("broadcast"))
 async def broadcast_start(message: types.Message, state: FSMContext):
@@ -759,8 +782,17 @@ async def process_content(message: types.Message, state: FSMContext):
 @dp.message(BroadcastStates.waiting_confirm)
 async def confirm_broadcast(message: types.Message, state: FSMContext):
     if message.text == "❌ Отменить":
+        # Возвращаем основное меню
+        main_kb = ReplyKeyboardBuilder()
+        main_kb.button(text="📄 Публичная оферта")
+        main_kb.button(text="📞 Поддержка")
+        main_kb.button(text="📢 Рассылка")
+        main_kb.adjust(2)
+        
+        await message.answer("❌ Рассылка отменена", 
+                           reply_markup=main_kb.as_markup(resize_keyboard=True))
         await state.clear()
-        return await message.answer("❌ Рассылка отменена", reply_markup=types.ReplyKeyboardRemove())
+        return
     
     if message.text == "✅ Подтвердить рассылку":
         await send_broadcast(message, state)
