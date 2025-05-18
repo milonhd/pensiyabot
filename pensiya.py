@@ -102,6 +102,7 @@ async def get_expired_users():
     await pool.wait_closed()
     return result
 
+
 # Кнопки (не изменены)
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
@@ -313,7 +314,7 @@ async def handle_year_selection(call: types.CallbackQuery):
 async def handle_year_screenshot(call: types.CallbackQuery):
     year = call.data.split("_")[2]
     # Сохраняем выбранный тариф в базе данных как "temp_tariff"
-    await set_user_access(call.from_user.id, 0, year)  # expire_time=0 показывает, что это временный выбор
+    await set_user_access(call.from_user.id, None, year)  
     await call.message.answer("📸 Пожалуйста, отправьте скриншот для проверки.")
 
 @dp.callback_query(
@@ -327,7 +328,7 @@ async def handle_callback(call: types.CallbackQuery):
         return
 
     if data == "basic":
-        await set_user_access(user_id, 0, "basic")  # Временно сохраняем выбор
+        await set_user_access(user_id, None, "basic")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_basic")]
@@ -356,7 +357,7 @@ async def handle_callback(call: types.CallbackQuery):
         reply_markup=keyboard)
 
     elif data == "pro":
-        await set_user_access(user_id, 0, "pro")  # Временно сохраняем выбор
+        await set_user_access(user_id, None, "pro")  # Временно сохраняем выбор
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📸 Отправить скриншот", callback_data="send_screenshot_pro")]
