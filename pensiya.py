@@ -858,14 +858,6 @@ async def send_broadcast(message: types.Message, state: FSMContext):
         f"📈 Успешных доставок: {int(success/total_users*100)}%"
     )
 
-            if index % 20 == 0:  # Делаем паузу каждые 20 сообщений
-                await asyncio.sleep(1)
-
-            except aiogram.exceptions.RetryAfter as e:
-                # Если Telegram просит подождать из-за flood control
-                await asyncio.sleep(e.timeout)
-                continue
-    
     await message.answer(report_message, reply_markup=types.ReplyKeyboardRemove())
     await state.clear()
 
