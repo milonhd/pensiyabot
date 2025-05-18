@@ -165,14 +165,6 @@ async def get_all_users():
     pool.close()
     await pool.wait_closed()
     return users
-
-async def set_commands():
-    commands = [
-        types.BotCommand(command="support", description="📞 Поддержка"),
-        types.BotCommand(command="offer", description="📄 Публичная оферта"),
-        types.BotCommand(command="broadcast", description="📢 Рассылка"),
-    ]
-    await bot.set_my_commands(commands)
     
 # Кнопки 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
