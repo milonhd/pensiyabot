@@ -907,8 +907,16 @@ async def execute_scheduled_broadcast(content: dict):
 async def ignore_group_messages(message: types.Message):
     pass  # Просто игнорируем все сообщения из групп
 
+async def delete_bot_commands():
+    # Удаляем команды для обычных пользователей
+    await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
+    
+    # Также удаляем команды по умолчанию (на всякий случай)
+    await bot.delete_my_commands()
+    
 async def on_startup():
     await init_db()
+    await delete_bot_commands()
     scheduler.start()
 
 async def main():
