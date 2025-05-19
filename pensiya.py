@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
-from aiogram.filters import Command, ChatTypeFilter
+from aiogram.filters import Command
 from aiogram.enums import ChatType
 from aiogram.types import FSInputFile
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
@@ -912,7 +912,7 @@ async def execute_scheduled_broadcast(content: dict):
         except Exception as e:
             logger.error(f"Scheduled broadcast error: {str(e)}")
 
-@dp.message(ChatTypeFilter([ChatType.GROUP, ChatType.SUPERGROUP]))
+@dp.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 async def ignore_group_messages(message: types.Message):
     pass  # Просто игнорируем все сообщения из групп
 
