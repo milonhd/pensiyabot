@@ -569,7 +569,7 @@ async def handle_callback(call: types.CallbackQuery):
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
 
-@dp.message(F.document), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(F.document), ChatTypeFilter(ChatType.PRIVATE)
 async def handle_document(message: types.Message):
     user = message.from_user
     _, tariff = await get_user_access(user.id)
@@ -709,7 +709,7 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
-@dp.message(F.text == "📞 Поддержка"), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(F.text == "📞 Поддержка"), ChatTypeFilter(ChatType.PRIVATE)
 async def handle_support_button(message: types.Message):
     support_msg = """
 📞 <b>Служба поддержки</b>
@@ -720,7 +720,7 @@ async def handle_support_button(message: types.Message):
     """
     await message.answer(support_msg, parse_mode="HTML")
 
-@dp.message(F.text == "📢 Рассылка"), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(F.text == "📢 Рассылка"), ChatTypeFilter(ChatType.PRIVATE)
 async def start_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
