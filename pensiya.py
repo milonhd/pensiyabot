@@ -298,7 +298,7 @@ async def revoke_access(message: types.Message):
             # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
 
-for group_id in GROUP_IDS:
+            for group_id in GROUP_IDS:
                 try:
                     await bot.ban_chat_member(group_id, user_id)
                     await bot.unban_chat_member(group_id, user_id)  # чтобы он мог снова вступить позже
