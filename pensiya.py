@@ -703,7 +703,7 @@ async def handle_support_button(message: types.Message):
 
 По всем вопросам обращайтесь:
 👉 WhatsApp: <a href="https://wa.me/77754850900">+7 775 485 09 00</a>
-⏰ Часы работы: Пн-Пт, 12:00-22:00
+⏰ Часы работы: Пн-Пт, 10:00-22:00
     """
     await message.answer(support_msg, parse_mode="HTML")
 
