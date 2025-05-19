@@ -755,6 +755,11 @@ async def process_content(message: types.Message, state: FSMContext):
     confirm_kb.button(text="✅ Подтвердить рассылку")
     confirm_kb.button(text="❌ Отменить")
     confirm_kb.adjust(2)
+
+    if message.text == "❌ Отменить":
+            await state.clear()
+            await show_main_menu(message, "❌ Рассылка отменена")
+            return
     
     preview_text = "📋 Предпросмотр рассылки:\n\n" + content['text']
     try:
