@@ -570,7 +570,7 @@ async def handle_callback(call: types.CallbackQuery):
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
 
-@dp.message(F.document), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(F.document) & ChatTypeFilter(ChatType.PRIVATE)
 async def handle_document(message: types.Message):
     user = message.from_user
     _, tariff = await get_user_access(user.id)
