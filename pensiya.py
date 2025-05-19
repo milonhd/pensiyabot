@@ -230,7 +230,6 @@ async def cmd_start(message: types.Message):
                 "Ты можешь оплатить прямо здесь и отправить чек оплаты. После этого администратор активирует тебе доступ, и появится кнопка *ПОЛУЧИТЬ МАТЕРИАЛЫ*.\n\n"
 
                 "Ты не один — давай разбираться вместе!\n"
-                "Выбирай уровень, чтобы начать."
             )
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
             await message.answer(
@@ -458,7 +457,7 @@ async def handle_callback(call: types.CallbackQuery):
     user_id = call.from_user.id
 
     if data == "self":
-        await call.message.answer("Выберите год вашего выхода на пенсию:", reply_markup=get_self_years_keyboard())
+        await call.message.answer("📅 Выберите год вашего выхода на пенсию:", reply_markup=get_self_years_keyboard())
         return
 
     if data == "basic":
