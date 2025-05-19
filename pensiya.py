@@ -376,7 +376,7 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
-@dp.message(F.text == "📄 Публичная оферта"), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(F.text == "📄 Публичная оферта"), ChatTypeFilter(ChatType.PRIVATE)
 async def handle_offer_button(message: types.Message):
     pdf_path = "oferta.pdf"
     try:
