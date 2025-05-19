@@ -923,7 +923,6 @@ async def ignore_group_messages(message: types.Message):
 
 async def on_startup():
     await init_db()
-    await set_commands()
     scheduler.start()
 
 async def main():
