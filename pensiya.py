@@ -173,7 +173,6 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
     [InlineKeyboardButton(text="Уровень ПРО", callback_data="pro")],
-    [InlineKeyboardButton(text="Публичная оферта", callback_data="offer")]
 ])
 
 materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -234,6 +233,10 @@ async def cmd_start(message: types.Message):
                 "Выбирай уровень, чтобы начать."
             )
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
+            await message.answer(
+                "👇 Выберите желаемый уровень:",
+                reply_markup=main_keyboard  # это InlineKeyboardMarkup
+            )
 
 
 @dp.message(Command("g"), F.chat.type == ChatType.PRIVATE)
