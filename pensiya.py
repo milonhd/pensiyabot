@@ -3,18 +3,17 @@ import time
 import asyncio
 import os
 import aiopg
-from aiogram.types import BotCommandScopeAllPrivateChats
-from aiogram.filters.chat_type import ChatTypeFilter
-from aiogram.enums import ChatType
+from aiogram import F
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram import F
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
-from aiogram.filters import Command
+from aiogram.filters import Command, ChatTypeFilter
+from aiogram.enums import ChatType
 from aiogram.types import FSInputFile
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
