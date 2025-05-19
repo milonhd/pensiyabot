@@ -435,7 +435,7 @@ async def set_user_access(user_id, expire_time, tariff):
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
-                    WHEN user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
+                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
                     ELSE user_access.tariff 
                 END
             """, (user_id, expire_time, tariff))
