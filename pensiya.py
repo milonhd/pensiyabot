@@ -444,14 +444,16 @@ async def set_user_access(user_id, expire_time, tariff):
     await pool.wait_closed()
 
 @dp.callback_query(
-    lambda c: c.data in [
+    F.data.in_([
         "self", "basic", "pro", "offer",
         "send_screenshot_basic", "send_screenshot_pro",  
         "get_materials", "used_link"
-    ], F.chat.type == ChatType.PRIVATE
+    ])
 )
-          
 async def handle_callback(call: types.CallbackQuery):
+    if call.message.chat.type != ChatType.PRIVATE:
+        return  # Не обрабатываем не-приватные чаты
+    
     data = call.data
     user_id = call.from_user.id
 
