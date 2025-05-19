@@ -348,7 +348,7 @@ async def check_status(message: types.Message):
         await message.answer("Ошибка при проверке статуса.")
 
 
-@dp.message(Command("help")), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(Command("help"), ChatTypeFilter(ChatType.PRIVATE))
 async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -361,7 +361,7 @@ async def help_admin(message: types.Message):
     """)
 
 
-@dp.message(Command("users")), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(Command("users"), ChatTypeFilter(ChatType.PRIVATE))
 async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
