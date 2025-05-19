@@ -3,6 +3,9 @@ import time
 import asyncio
 import os
 import aiopg
+from aiogram.types import BotCommandScopeAllPrivateChats
+from aiogram.enums import ChatType
+from aiogram.filters import ChatTypeFilter
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -174,7 +177,11 @@ async def set_commands():
     ]
     if ADMIN_ID:
         commands.append(types.BotCommand(command="broadcast", description="Рассылка"))
-    await bot.set_my_commands(commands)
+    
+    await bot.set_my_commands(
+        commands=commands,
+        scope=BotCommandScopeAllPrivateChats()
+    )
 
 # Кнопки 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -199,7 +206,7 @@ def get_year_buttons(year):
         [InlineKeyboardButton(text="📄 Отправить чек", callback_data=f"send_screenshot_{year}")]
     ])
 
-@dp.message(Command("start"))
+@dp.message(Command("start"), ChatTypeFilter(ChatType.PRIVATE))
 async def cmd_start(message: types.Message):
     await save_user(message.from_user)
     user = message.from_user
@@ -244,7 +251,7 @@ async def cmd_start(message: types.Message):
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
 
 
-@dp.message(Command("g"))
+@dp.message(Command("g"), ChatTypeFilter(ChatType.PRIVATE))
 async def grant_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -278,7 +285,7 @@ async def grant_access(message: types.Message):
         await message.answer("Произошла ошибка.")
 
 
-@dp.message(Command("revoke"))
+@dp.message(Command("revoke"), ChatTypeFilter(ChatType.PRIVATE))
 async def revoke_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -308,7 +315,7 @@ async def revoke_access(message: types.Message):
         await message.answer("Произошла ошибка.")
 
 
-@dp.message(Command("status"))
+@dp.message(Command("status")), ChatTypeFilter(ChatType.PRIVATE))
 async def check_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -341,7 +348,7 @@ async def check_status(message: types.Message):
         await message.answer("Ошибка при проверке статуса.")
 
 
-@dp.message(Command("help"))
+@dp.message(Command("help")), ChatTypeFilter(ChatType.PRIVATE))
 async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -354,7 +361,7 @@ async def help_admin(message: types.Message):
     """)
 
 
-@dp.message(Command("users"))
+@dp.message(Command("users")), ChatTypeFilter(ChatType.PRIVATE))
 async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
@@ -369,7 +376,7 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
-@dp.message(F.text == "📄 Публичная оферта")
+@dp.message(F.text == "📄 Публичная оферта"), ChatTypeFilter(ChatType.PRIVATE))
 async def handle_offer_button(message: types.Message):
     pdf_path = "oferta.pdf"
     try:
@@ -562,7 +569,7 @@ async def handle_callback(call: types.CallbackQuery):
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
 
-@dp.message(F.document)
+@dp.message(F.document), ChatTypeFilter(ChatType.PRIVATE))
 async def handle_document(message: types.Message):
     user = message.from_user
     _, tariff = await get_user_access(user.id)
@@ -702,7 +709,7 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
-@dp.message(F.text == "📞 Поддержка")
+@dp.message(F.text == "📞 Поддержка"), ChatTypeFilter(ChatType.PRIVATE))
 async def handle_support_button(message: types.Message):
     support_msg = """
 📞 <b>Служба поддержки</b>
@@ -713,8 +720,7 @@ async def handle_support_button(message: types.Message):
     """
     await message.answer(support_msg, parse_mode="HTML")
 
-@dp.message(F.text == "📢 Рассылка")
-@dp.message(Command("broadcast"))
+@dp.message(F.text == "📢 Рассылка"), ChatTypeFilter(ChatType.PRIVATE))
 async def start_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
@@ -731,12 +737,6 @@ async def start_broadcast(message: types.Message, state: FSMContext):
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    # Обработка отмены
-    if message.text in ["❌ Отменить"]:
-        await state.clear()
-        await show_main_menu(message)
-        return
-    
     # Обработка контента
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
@@ -910,6 +910,10 @@ async def execute_scheduled_broadcast(content: dict):
                 await bot.send_message(user_id, content['text'])
         except Exception as e:
             logger.error(f"Scheduled broadcast error: {str(e)}")
+
+@dp.message(ChatTypeFilter([ChatType.GROUP, ChatType.SUPERGROUP]))
+async def ignore_group_messages(message: types.Message):
+    pass  # Просто игнорируем все сообщения из групп
 
 async def on_startup():
     await init_db()
