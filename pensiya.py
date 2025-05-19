@@ -25,6 +25,7 @@ if not DATABASE_URL:
 
 API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
+GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ async def revoke_user_access(user_id):
         async with conn.cursor() as cur:
             await cur.execute("""
                 UPDATE user_access 
-                SET expire_time = 0 
+                SET expire_time = EXTRACT(epoch FROM NOW()) - 1 
                 WHERE user_id = %s
             """, (user_id,))
     pool.close()
@@ -297,12 +298,13 @@ async def revoke_access(message: types.Message):
             # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
 
-# Удаление из группы
-            try:
-                await bot.ban_chat_member(GROUP_ID, user_id)
-                await bot.unban_chat_member(GROUP_ID, user_id)  # чтобы он мог снова вступить позже
-            except Exception as e:
-                logging.error(f"Не удалось удалить пользователя из группы: {e}")
+for group_id in GROUP_IDS:
+                try:
+                    await bot.ban_chat_member(group_id, user_id)
+                    await bot.unban_chat_member(group_id, user_id)  # чтобы он мог снова вступить позже
+                    logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
+                except Exception as e:
+                    logging.error(f"Не удалось удалить пользователя из группы {group_id}: {e}")
         
         else:
             await message.answer("У пользователя нет доступа.")
