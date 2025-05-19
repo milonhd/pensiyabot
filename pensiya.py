@@ -93,11 +93,15 @@ async def get_user_access(user_id):
     await pool.wait_closed()
     return result
 
-async def delete_user_access(user_id):
+async def revoke_user_access(user_id):
     pool = await create_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("DELETE FROM user_access WHERE user_id = %s", (user_id,))
+            await cur.execute("""
+                UPDATE user_access 
+                SET expire_time = 0 
+                WHERE user_id = %s
+            """, (user_id,))
     pool.close()
     await pool.wait_closed()
 
@@ -286,15 +290,20 @@ async def revoke_access(message: types.Message):
         expire_time, _ = await get_user_access(user_id)
         
         if expire_time:
-            # Удаляем доступ
-            await delete_user_access(user_id)
-
+            await revoke_user_access(user_id)
             # Уведомление для пользователя
             await bot.send_message(user_id, "❌ Ваш доступ был отозван. Теперь вы не можете получать материалы.")
 
             # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
 
+# Удаление из группы
+            try:
+                await bot.ban_chat_member(GROUP_ID, user_id)
+                await bot.unban_chat_member(GROUP_ID, user_id)  # чтобы он мог снова вступить позже
+            except Exception as e:
+                logging.error(f"Не удалось удалить пользователя из группы: {e}")
+        
         else:
             await message.answer("У пользователя нет доступа.")
     except Exception as e:
