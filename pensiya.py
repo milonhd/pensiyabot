@@ -376,7 +376,7 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
-@dp.message(F.text == "📄 Публичная оферта" & ChatTypeFilter(ChatType.PRIVATE)
+@dp.message(F.text == "📄 Публичная оферта", ChatTypeFilter(ChatType.PRIVATE))
 async def handle_offer_button(message: types.Message):
     pdf_path = "oferta.pdf"
     try:
@@ -460,7 +460,8 @@ async def set_user_access(user_id, expire_time, tariff):
         "self", "basic", "pro", "offer",
         "send_screenshot_basic", "send_screenshot_pro",  
         "get_materials", "used_link"
-    ])
+    ], ChatTypeFilter(ChatType.PRIVATE))
+          
 async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
@@ -709,7 +710,7 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600)  # Проверка каждый час
 
-@dp.message(F.text == "📞 Поддержка" & ChatTypeFilter(ChatType.PRIVATE)
+@dp.message(F.text == "📞 Поддержка", ChatTypeFilter(ChatType.PRIVATE))
 async def handle_support_button(message: types.Message):
     support_msg = """
 📞 <b>Служба поддержки</b>
@@ -720,7 +721,7 @@ async def handle_support_button(message: types.Message):
     """
     await message.answer(support_msg, parse_mode="HTML")
 
-@dp.message(F.text == "📢 Рассылка" & ChatTypeFilter(ChatType.PRIVATE)
+@dp.message(F.text == "📢 Рассылка", ChatTypeFilter(ChatType.PRIVATE))
 async def start_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("🚫 Доступ запрещен", reply_markup=types.ReplyKeyboardRemove())
