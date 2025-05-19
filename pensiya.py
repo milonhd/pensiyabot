@@ -315,7 +315,7 @@ async def revoke_access(message: types.Message):
         await message.answer("Произошла ошибка.")
 
 
-@dp.message(Command("status")), ChatTypeFilter(ChatType.PRIVATE))
+@dp.message(Command("status"), ChatTypeFilter(ChatType.PRIVATE))
 async def check_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("Нет доступа.")
