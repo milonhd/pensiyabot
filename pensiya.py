@@ -4,6 +4,7 @@ import asyncio
 import os
 import aiopg
 from aiogram.types import BotCommandScopeAllPrivateChats
+from aiogram.filters.chat_type import ChatTypeFilter
 from aiogram.enums import ChatType
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
