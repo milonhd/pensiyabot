@@ -252,11 +252,11 @@ async def grant_access(message: types.Message):
             return await message.answer("Тариф должен быть 'basic', 'pro' или '2025'-'2031'.")
 
         if tariff == "basic":
-            duration = 30 * 24 * 60 * 60
+            duration = 60
         elif tariff == "pro":
             duration = 60 * 24 * 60 * 60
         else:
-            duration = 7 * 24 * 60 * 60  
+            duration = 60 
 
         expire_time = time.time() + duration
         await set_user_access(user_id, expire_time, tariff)
