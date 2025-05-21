@@ -1,9 +1,8 @@
 import logging
 import os
 from typing import List
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, filters
 from aiogram.filters import Command
-from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ChatType
@@ -459,18 +458,22 @@ class CallbackHandlers:
             await call.message.answer(
                 """
 🔸 Уровень БАЗОВЫЙ — мини-курс для тех, кто хочет понимать расчёт пенсии и помогать другим
+
 📚 Вы получите:
 ✔️ Готовый алгоритм расчёта пенсии — пошагово, без сложных формул
 ✔️ Примеры и шаблоны — как считать, где брать данные
 ✔️ Видео + текстовые материалы — всё по делу
 ✔️ Ответы на вопросы по расчёту
+
 🧠 Подходит тем, кто:
 – хочет разбираться в теме для себя и близких
 – планирует помогать другим
 – не хочет тратить время на самостоятельное изучение
+
 ⏰ Доступ: 30 дней
 💬 Поддержка: вопрос-ответ в общем чате
 💳 Стоимость: 50 000 ₸
+
 👇 Нажмите «✅ Оплатить», чтобы перейти к реквизитам.
                 """,
                 reply_markup=keyboard
@@ -488,18 +491,22 @@ class CallbackHandlers:
             year = data.split("_")[1]
             text = """
 🔹 Уровень САМОСТОЯТЕЛЬНЫЙ — чтобы увидеть свою будущую пенсию без сложных расчётов
+
 📌 Подходит, если:
 – не дружите с формулами, Excel, не понимаете алгоритм расчета
 – просто хотите понять, почему у вас будет такая пенсия
 – хотите узнать, что влияет на размер пенсии
+
 📚 Вы получите:
 ✔️ Готовые материалы в понятной форме — таблицы и видео
 ✔️ Объяснение на примерах
 ✔️ Инструкции: что проверить, где взять данные
 ✔️ Конечный продукт с расчетом вашей пенсии
+
 ⏰ Доступ: 7 дней
 💬 Вопросы — в общем чате
 💳 Стоимость: 10 000 ₸
+
 👇 Нажмите «✅ Оплатить», чтобы перейти к реквизитам.
             """
             await call.message.answer(text, reply_markup=keyboards.get_year_buttons(year))
@@ -567,18 +574,18 @@ def register_handlers(dp: Dispatcher, db: Database, bot: Bot, admin_id: int, gro
     admin_handlers = AdminHandlers(db, bot, admin_id, group_ids)
     callback_handlers = CallbackHandlers(db, bot, admin_id, group_ids)
 
-    dp.message.register(user_handlers.cmd_start, Command("start"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(user_handlers.handle_offer_button, Text(text="📄 Публичная оферта"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(user_handlers.handle_support_button, Text(text="📞 Поддержка"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(user_handlers.cmd_start, Command("start"), filters.ChatType.PRIVATE)
+    dp.message.register(user_handlers.handle_offer_button, filters.Text(text="📄 Публичная оферта"), filters.ChatType.PRIVATE)
+    dp.message.register(user_handlers.handle_support_button, filters.Text(text="📞 Поддержка"), filters.ChatType.PRIVATE)
     dp.message.register(user_handlers.handle_document, lambda m: m.document and m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.handle_broadcast_start, Text(text="📢 Рассылка"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(admin_handlers.handle_broadcast_start, filters.Text(text="📢 Рассылка"), filters.ChatType.PRIVATE)
     dp.message.register(admin_handlers.handle_broadcast_content, BroadcastStates.waiting_content)
     dp.message.register(admin_handlers.handle_broadcast_confirm, BroadcastStates.waiting_confirm)
     
-    dp.message.register(admin_handlers.cmd_grant, Command("g"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.cmd_revoke, Command("revoke"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.cmd_status, Command("status"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.cmd_users, Command("users"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.cmd_help, Command("help"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(admin_handlers.cmd_grant, Command("g"), filters.ChatType.PRIVATE)
+    dp.message.register(admin_handlers.cmd_revoke, Command("revoke"), filters.ChatType.PRIVATE)
+    dp.message.register(admin_handlers.cmd_status, Command("status"), filters.ChatType.PRIVATE)
+    dp.message.register(admin_handlers.cmd_users, Command("users"), filters.ChatType.PRIVATE)
+    dp.message.register(admin_handlers.cmd_help, Command("help"), filters.ChatType.PRIVATE)
     
     dp.callback_query.register(callback_handlers.handle_callback, lambda c: c.data in ["self", "basic", "pro", "get_materials", "used_link"] or c.data.startswith("year_") or c.data.startswith("send_screenshot_"))
