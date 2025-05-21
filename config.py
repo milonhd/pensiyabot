@@ -1,20 +1,71 @@
-from pydantic_settings import BaseSettings
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Токен и ID
+API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
+ADMIN_ID = 957724800
+GROUP_IDS = [
+    -1002583988789,  # basic
+    -1002529607781,  # 2025
+    -1002611068580,  # 2026
+    -1002607289832,  # 2027
+    -1002560662894,  # 2028
+    -1002645685285,  # 2029
+    -1002529375771,  # 2030
+    -1002262602915,  # 2031
+]
 
-class Config(BaseSettings):
-    api_token: str
-    database_url: str
-    admin_id: int
-    receipt_dir: str = "/app/receipts"
+# Группы по тарифам
+TARIFF_GROUPS = {
+    "basic": -1002583988789,
+    "2025": -1002529607781,
+    "2026": -1002611068580,
+    "2027": -1002607289832,
+    "2028": -1002560662894,
+    "2029": -1002645685285,
+    "2030": -1002529375771,
+    "2031": -1002262602915
+}
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+# Длительность доступа (в днях)
+ACCESS_DURATION = {
+    "basic": 30,
+    "pro": 60,
+    "self": 7,
+    "2025": 7,
+    "2026": 7,
+    "2027": 7,
+    "2028": 7,
+    "2029": 7,
+    "2030": 7,
+    "2031": 7
+}
 
-    def __init__(self):
-        super().__init__()
-        if not self.api_token or not self.database_url or not self.admin_id:
-            raise ValueError("Не заданы обязательные переменные окружения: API_TOKEN, DATABASE_URL, ADMIN_ID")
+# Суммы оплаты для разных тарифов
+REQUIRED_AMOUNTS = {
+    "self": 10000,
+    "basic": 50000,
+    "pro": 250000,
+    "2025": 10000,
+    "2026": 10000,
+    "2027": 10000,
+    "2028": 10000,
+    "2029": 10000,
+    "2030": 10000,
+    "2031": 10000
+}
+
+# База данных
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    # Локальная конфигурация для тестирования
+    DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
+
+# Директория для сохранения чеков
+RECEIPT_DIR = "/app/receipts"
+os.makedirs(RECEIPT_DIR, exist_ok=True)
+
+# ИИН для проверки в чеках
+MERCHANT_IIN = "620613400018"
+
+# URL оплаты
+PAYMENT_URL = "https://pay.kaspi.kz/pay/vx2s6z0c"
