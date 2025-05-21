@@ -3,6 +3,8 @@ import time
 import asyncio
 import os
 import aiopg
+import pdfplumber
+import re
 from aiogram import F
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
@@ -15,7 +17,6 @@ from aiogram.types import FSInputFile
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
 
 # Конфигурация для PostgreSQL
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -56,8 +57,69 @@ async def init_db():
                 tariff VARCHAR(20)
             )
             """)
+            await cur.execute("""
+                ALTER TABLE user_access 
+                ADD COLUMN IF NOT EXISTS username VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS first_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()
+            """)
+            # Новая таблица для чеков
+            await cur.execute("""
+            CREATE TABLE IF NOT EXISTS fiscal_checks (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES user_access(user_id),
+                amount DECIMAL,
+                check_number VARCHAR(50) UNIQUE,
+                fp VARCHAR(50) UNIQUE,
+                date_time TIMESTAMP,
+                buyer_name VARCHAR(255),
+                file_id VARCHAR(255) UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+            """)
     pool.close()
     await pool.wait_closed()
+
+async def parse_kaspi_receipt(pdf_path: str):
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            text = "\n".join(page.extract_text() for page in pdf.pages)
+            
+            data = {
+                "amount": float(re.search(r"(\d+)\s*₸", text).group(1)) if re.search(r"(\d+)\s*₸", text) else None,
+                "iin": re.search(r"ИИИ/БИН продавца\s*(\d+)", text).group(1) if re.search(r"ИИИ/БИН продавца\s*(\d+)", text) else None,
+                "check_number": re.search(r"№ чека\s*(\S+)", text).group(1) if re.search(r"№ чека\s*(\S+)", text) else None,
+                "fp": re.search(r"ФП\s*(\d+)", text).group(1) if re.search(r"ФП\s*(\d+)", text) else None,
+                "date_time": re.search(r"Дата и время по Астане:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text).group(1) if re.search(r"Дата и время по Астане:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text) else None,
+                "buyer_name": re.search(r"ФИО покупателя\s*(.+)", text).group(1).strip() if re.search(r"ФИО покупателя\s*(.+)", text) else None
+            }
+            return data
+    except Exception as e:
+        logging.error(f"Ошибка парсинга PDF: {e}")
+        return None
+
+async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name, file_id):
+    try:
+        pool = await create_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    INSERT INTO fiscal_checks 
+                    (user_id, amount, check_number, fp, date_time, buyer_name, file_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (user_id, amount, check_number, fp, date_time, buyer_name, file_id))
+                return True
+    except Exception as e:
+        logging.error(f"Ошибка при сохранении чека: {e}")
+        return False
+
+async def check_duplicate_file(file_id):
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT 1 FROM fiscal_checks WHERE file_id = %s", (file_id,))
+            return await cur.fetchone() is not None
 
 # Функции для работы с базой данных
 async def set_user_access(user_id, expire_time, tariff):
@@ -103,21 +165,6 @@ async def revoke_user_access(user_id):
                 SET expire_time = EXTRACT(epoch FROM NOW()) - 1 
                 WHERE user_id = %s
             """, (user_id,))
-    pool.close()
-    await pool.wait_closed()
-
-async def init_db():
-    pool = await create_pool()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            # Добавляем новые поля в существующую таблицу
-            await cur.execute("""
-                ALTER TABLE user_access 
-                ADD COLUMN IF NOT EXISTS username VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS first_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()
-            """)
     pool.close()
     await pool.wait_closed()
 
@@ -574,37 +621,71 @@ async def handle_used_link(call: types.CallbackQuery):
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
 async def handle_document(message: types.Message):
     user = message.from_user
-    _, tariff = await get_user_access(user.id)
+    expire_time, tariff = await get_user_access(user.id)
     
-    # Проверяем что это PDF файл
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
-    
-    if not tariff:
-        tariff = "не выбран"
+
+    file_id = message.document.file_id
+    if await check_duplicate_file(file_id):
+        return await message.answer("❌ Этот чек уже был загружен ранее")
+
+    file = await bot.get_file(file_id)
+
+    receipt_data = await parse_kaspi_receipt(pdf_path)
+    if not receipt_data:
+        return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
+
+    required_amounts = {
+        "self": 10000,
+        "basic": 50000,
+        "pro": 250000
+    }
+
+    errors = []
+    if receipt_data["iin"] != "620513400018":
+        errors.append("ИИН продавца не совпадает")
         
+    if receipt_data["amount"] != required_amounts.get(tariff, 0):
+        errors.append(f"Сумма не соответствует тарифу {tariff}")
+
+    if errors:
+        return await message.answer("❌ Ошибки в чеке:\n" + "\n".join(errors))
+
+    if not await save_receipt(
+        user_id=user.id,
+        amount=receipt_data["amount"],
+        check_number=receipt_data["check_number"],
+        fp=receipt_data["fp"],
+        date_time=datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M"),
+        buyer_name=receipt_data["buyer_name"],
+        file_id=file_id
+    ):
+        return await message.answer("❌ Ошибка при сохранении чека")
+
+    # Автоматическая активация доступа
+    if tariff in ["self", "basic", "pro"]:
+        duration = {
+            "self": 7,
+            "basic": 30,
+            "pro": 60
+        }.get(tariff, 7) * 86400
+        
+        await set_user_access(user.id, time.time() + duration, tariff)
+        await message.answer(f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!", reply_markup=materials_keyboard)
+
+    # Уведомление админу
     info = (
         f"📄 Фискальный чек от пользователя:\n"
         f"🆔 ID: {user.id}\n"
-        f"👤 Username: @{user.username if user.username else 'Без username'}\n"
+        f"👤 Username: @{user.username or 'Без username'}\n"
         f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}\n"
         f"📝 Файл: {message.document.file_name}"
     )
     
-    await message.answer(f"Спасибо за чек! Вы выбрали уровень: {tariff.upper()}")
+    await bot.send_message(ADMIN_ID, info)
+    await bot.send_document(ADMIN_ID, message.document.file_id)
     
-    # Отправляем админу
-    approve_button = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выдать доступ", callback_data=f"approve_{user.id}")]
-    ])
-    
-    await bot.send_message(ADMIN_ID, info, reply_markup=approve_button)
-    await bot.send_document(
-        chat_id=ADMIN_ID, 
-        document=message.document.file_id, 
-        caption=f"Чек оплаты от {user.first_name or 'пользователя'}"
-    )
-
 # Удаление сообщений о входе новых участников
 @dp.message(F.new_chat_members)
 async def remove_join_message(message: types.Message):
@@ -670,6 +751,14 @@ async def approve_user(call: types.CallbackQuery):
 
     user_id = int(call.data.split("_")[1])
     _, tariff = await get_user_access(user_id)
+
+    # Проверка наличия чека
+    pool = await create_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT 1 FROM fiscal_checks WHERE user_id = %s", (user_id,))
+            if not await cur.fetchone():
+                return await call.answer("❌ У пользователя нет подтвержденного чека")
 
     if not tariff:
         return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
