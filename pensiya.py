@@ -31,9 +31,6 @@ GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -10
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-receipt_data = await parse_kaspi_receipt(pdf_path)
-logging.info(f"Данные чека: {receipt_data}")
-
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -85,6 +82,8 @@ async def init_db():
     await pool.wait_closed()
 
 async def parse_kaspi_receipt(pdf_path: str):
+    receipt_data = await parse_kaspi_receipt(pdf_path)
+    logging.info(f"Данные чека: {receipt_data}")
     try:
         with pdfplumber.open(pdf_path) as pdf:
             text = "\n".join(page.extract_text() for page in pdf.pages)
