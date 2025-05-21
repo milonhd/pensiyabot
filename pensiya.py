@@ -643,13 +643,13 @@ async def handle_document(message: types.Message):
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
 
     required_amounts = {
-        "self": 10000,
+        "self": 100,
         "basic": 50000,
         "pro": 250000
     }
 
     errors = []
-    if receipt_data["iin"] != "620513400018":
+    if receipt_data["iin"] != "620613400018":
         errors.append("ИИН продавца не совпадает")
         
     if receipt_data["amount"] != required_amounts.get(tariff, 0):
