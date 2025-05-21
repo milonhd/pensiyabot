@@ -639,13 +639,23 @@ async def handle_document(message: types.Message):
     await bot.download(file=await bot.get_file(file_id), destination=file_path)
 
     receipt_data = await parse_kaspi_receipt(file_path)
+    
+    await message.answer(f"Данные чека:\nИИН: {receipt_data['iin']}\nСумма: {receipt_data['amount']}\nНомер чека: {receipt_data['check_number']}")
+    
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
 
     required_amounts = {
         "self": 100,
         "basic": 50000,
-        "pro": 250000
+        "pro": 250000,
+        "2025": 100,
+        "2026": 100 ,
+        "2027": 100,
+        "2028": 100,
+        "2029": 100,
+        "2030": 100 ,
+        "2031": 100
     }
 
     errors = []
