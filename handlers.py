@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, types, filters
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import ChatType
+from aiogram.enums import ChatType
 from database import Database
 import keyboards
 from constants import TARIFF_DURATIONS, REQUIRED_AMOUNTS, GROUP_IDS, TARIFF_CHAT_MAP
