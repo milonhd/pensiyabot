@@ -1,62 +1,71 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.enums import ChatType
+from aiogram.filters import Command
+from aiogram import F
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import Config
-from database import Database
-from handlers import register_handlers
-from logging_config import setup_logging
-from constants import GROUP_IDS
-from utils import check_access_periodically, check_subscriptions
 
-async def on_startup(db: Database, bot: Bot, scheduler: AsyncIOScheduler, admin_id: int):
-    """Инициализация ресурсов бота при запуске."""
-    await db.init_db()
-    await bot.delete_my_commands()  # Удаление стандартных команд
-    scheduler.add_job(check_access_periodically, 'interval', seconds=10, args=(db, bot, admin_id, GROUP_IDS))
-    scheduler.add_job(check_subscriptions, 'interval', seconds=3600, args=(db, bot))
+from config import API_TOKEN, ADMIN_ID
+from database import init_db
+from handlers.admin import register_admin_handlers
+from handlers.broadcast import register_broadcast_handlers
+from handlers.common import register_common_handlers
+from handlers.subscription import register_subscription_handlers, check_access_periodically
+from handlers.receipt import register_receipt_handlers
+from utils.commands import delete_bot_commands
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Инициализация бота и диспетчера
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+scheduler = AsyncIOScheduler(timezone="UTC")
+
+# Создание директории для чеков если не существует
+RECEIPT_DIR = "/app/receipts"
+os.makedirs(RECEIPT_DIR, exist_ok=True)
+
+# Регистрация всех обработчиков
+def register_all_handlers():
+    # Игнорирование групповых сообщений
+    dp.message.register(lambda message: None, F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+    
+    # Регистрация обработчиков из разных модулей
+    register_admin_handlers(dp, bot)
+    register_common_handlers(dp, bot)
+    register_subscription_handlers(dp, bot)
+    register_receipt_handlers(dp, bot)
+    register_broadcast_handlers(dp, bot)
+
+async def on_startup():
+    """Действия при запуске бота"""
+    await init_db()
+    await delete_bot_commands(bot)
+    # Запуск периодической проверки доступов
+    asyncio.create_task(check_access_periodically(bot))
+    logger.info("Бот запущен")
     scheduler.start()
-    logging.info("Бот успешно запущен")
 
-async def on_shutdown(db: Database, scheduler: AsyncIOScheduler, bot: Bot):
-    """Очистка ресурсов при остановке бота."""
+async def on_shutdown():
+    """Действия при остановке бота"""
     scheduler.shutdown()
     await bot.session.close()
-    await db.close()
-    logging.info("Бот остановлен")
+    logger.info("Бот остановлен")
 
-async def main():
-    """Основная точка входа для бота."""
-    # Настройка логирования
-    setup_logging()
-    
-    # Загрузка конфигурации
-    config = Config()
-    
-    # Инициализация бота и диспетчера
-    bot = Bot(token=config.api_token)
-    dp = Dispatcher(storage=MemoryStorage())
-    
-    # Инициализация базы данных
-    db = Database(config.database_url)
-    
-    # Инициализация планировщика
-    scheduler = AsyncIOScheduler(timezone="UTC")
-    
-    # Регистрация обработчиков
-    register_handlers(dp, db, bot, config.admin_id, GROUP_IDS)
-    
-    # Регистрация хуков запуска и остановки
-    dp.startup.register(lambda: on_startup(db, bot, scheduler, config.admin_id))
-    dp.shutdown.register(lambda: on_shutdown(db, scheduler, bot))
+def main():
+    """Основная функция запуска бота"""
+    register_all_handlers()
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
     
     try:
-        await dp.start_polling(bot)
+        asyncio.run(dp.start_polling(bot))
     except (KeyboardInterrupt, SystemExit):
-        logging.info("Бот остановлен пользователем")
-    except Exception as e:
-        logging.error(f"Критическая ошибка: {e}", exc_info=True)
+        logger.warning("Бот остановлен")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
