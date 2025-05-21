@@ -4,3 +4,4 @@ aiopg
 psycopg2-binary
 apscheduler
 python-dotenv
+pdfplumber
