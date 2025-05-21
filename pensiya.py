@@ -85,8 +85,6 @@ async def init_db():
     await pool.wait_closed()
 
 async def parse_kaspi_receipt(pdf_path: str):
-    logging.info(f"Парсинг чека: IIN={receipt_data['iin']}, Amount={receipt_data['amount']}")
-    await message.answer(f"📋 IIN в чеке: {receipt_data['iin']}\n💰 Сумма: {receipt_data['amount']}")
     try:
         with pdfplumber.open(pdf_path) as pdf:
             text = "\n".join(page.extract_text() for page in pdf.pages)
