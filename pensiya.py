@@ -675,16 +675,16 @@ async def handle_document(message: types.Message):
     
     expire_time, tariff = await get_user_access(user.id)
     required_amounts = {
-        "self": 100,
+        "self": 10000,
         "basic": 50000,
         "pro": 250000,
-        "2025": 100,
-        "2026": 100,
-        "2027": 100,
-        "2028": 100,
-        "2029": 100,
-        "2030": 100,
-        "2031": 100
+        "2025": 10000,
+        "2026": 10000,
+        "2027": 10000,
+        "2028": 10000,
+        "2029": 10000,
+        "2030": 10000,
+        "2031": 10000
     }
 
     errors = []
