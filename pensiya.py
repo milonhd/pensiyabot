@@ -27,6 +27,9 @@ if not DATABASE_URL:
 API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
 ADMIN_ID = 957724800
 GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]
+RECEIPT_DIR = "/app/receipts"
+
+os.makedirs(RECEIPT_DIR, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -630,10 +633,12 @@ async def handle_document(message: types.Message):
     file_id = message.document.file_id
     if await check_duplicate_file(file_id):
         return await message.answer("❌ Этот чек уже был загружен ранее")
+    
+    # Сохраняем файл в папку /app/receipts
+    file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
+    await bot.download(file=await bot.get_file(file_id), destination=file_path)
 
-    file = await bot.get_file(file_id)
-
-    receipt_data = await parse_kaspi_receipt(pdf_path)
+    receipt_data = await parse_kaspi_receipt(file_path)
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
 
