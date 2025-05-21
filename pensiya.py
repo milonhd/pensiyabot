@@ -94,7 +94,9 @@ async def parse_kaspi_receipt(pdf_path: str):
                 "iin": re.search(r"ИИН/БИН продавца\s*(\d+)", text).group(1) if re.search(r"ИИН/БИН продавца\s*(\d+)", text) else None,
                 "check_number": re.search(r"№ чека\s*(\S+)", text).group(1) if re.search(r"№ чека\s*(\S+)", text) else None,
                 "fp": re.search(r"ФП\s*(\d+)", text).group(1) if re.search(r"ФП\s*(\d+)", text) else None,
-                "date_time": re.search(r"Дата и время:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text).group(1) if re.search(r"Дата и время:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text) else None,
+                "date_time": re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
+, text).group(1) if re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
+, text) else None,
                 "buyer_name": re.search(r"ФИО покупателя\s*(.+)", text).group(1).strip() if re.search(r"ФИО покупателя\s*(.+)", text) else None
             }
             return data
