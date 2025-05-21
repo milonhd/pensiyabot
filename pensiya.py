@@ -31,6 +31,9 @@ GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -10
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+receipt_data = await parse_kaspi_receipt(pdf_path)
+logging.info(f"Данные чека: {receipt_data}")
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -620,6 +623,7 @@ async def handle_used_link(call: types.CallbackQuery):
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
 async def handle_document(message: types.Message):
+    logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
     expire_time, tariff = await get_user_access(user.id)
     
