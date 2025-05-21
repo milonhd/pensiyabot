@@ -94,7 +94,7 @@ async def parse_kaspi_receipt(pdf_path: str):
                 "iin": re.search(r"ИИН/БИН продавца\s*(\d+)", text).group(1) if re.search(r"ИИН/БИН продавца\s*(\d+)", text) else None,
                 "check_number": re.search(r"№ чека\s*(\S+)", text).group(1) if re.search(r"№ чека\s*(\S+)", text) else None,
                 "fp": re.search(r"ФП\s*(\d+)", text).group(1) if re.search(r"ФП\s*(\d+)", text) else None,
-                "date_time": re.search(r"Дата и время по Астане:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text).group(1) if re.search(r"Дата и время по Астане:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text) else None,
+                "date_time": re.search(r"Дата и время:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text).group(1) if re.search(r"Дата и время:\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})", text) else None,
                 "buyer_name": re.search(r"ФИО покупателя\s*(.+)", text).group(1).strip() if re.search(r"ФИО покупателя\s*(.+)", text) else None
             }
             return data
@@ -103,6 +103,7 @@ async def parse_kaspi_receipt(pdf_path: str):
         return None
 
 async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name, file_id):
+    pool = None
     try:
         pool = await create_pool()
         async with pool.acquire() as conn:
@@ -116,6 +117,10 @@ async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name,
     except Exception as e:
         logging.error(f"Ошибка при сохранении чека: {e}")
         return False
+    finally:
+        if pool:
+            pool.close()
+            await pool.wait_closed()
 
 async def check_duplicate_file(file_id):
     pool = await create_pool()
