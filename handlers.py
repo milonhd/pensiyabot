@@ -2,7 +2,8 @@ import logging
 import os
 from typing import List
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command, Text
+from aiogram.filters import Command
+from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ChatType
@@ -238,7 +239,7 @@ class AdminHandlers:
                 await message.answer("❌ Доступа нет или он истек.")
         except Exception as e:
             logger.error(f"Ошибка проверки статуса: {e}", exc_info=True)
-            await message.answer("Ошибка при проверке статуса.")
+            await message.answer("Ошибка при проверки статуса.")
 
     async def cmd_users(self, message: types.Message):
         """Обработчик команды /users для показа активных пользователей."""
@@ -567,10 +568,10 @@ def register_handlers(dp: Dispatcher, db: Database, bot: Bot, admin_id: int, gro
     callback_handlers = CallbackHandlers(db, bot, admin_id, group_ids)
 
     dp.message.register(user_handlers.cmd_start, Command("start"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(user_handlers.handle_offer_button, Text("📄 Публичная оферта"), lambda m: m.chat.type == ChatType.PRIVATE)
-    dp.message.register(user_handlers.handle_support_button, Text("📞 Поддержка"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(user_handlers.handle_offer_button, Text(text="📄 Публичная оферта"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(user_handlers.handle_support_button, Text(text="📞 Поддержка"), lambda m: m.chat.type == ChatType.PRIVATE)
     dp.message.register(user_handlers.handle_document, lambda m: m.document and m.chat.type == ChatType.PRIVATE)
-    dp.message.register(admin_handlers.handle_broadcast_start, Text("📢 Рассылка"), lambda m: m.chat.type == ChatType.PRIVATE)
+    dp.message.register(admin_handlers.handle_broadcast_start, Text(text="📢 Рассылка"), lambda m: m.chat.type == ChatType.PRIVATE)
     dp.message.register(admin_handlers.handle_broadcast_content, BroadcastStates.waiting_content)
     dp.message.register(admin_handlers.handle_broadcast_confirm, BroadcastStates.waiting_confirm)
     
