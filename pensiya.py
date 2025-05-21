@@ -630,7 +630,6 @@ async def handle_used_link(call: types.CallbackQuery):
 async def handle_document(message: types.Message):
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
-    expire_time, tariff = await get_user_access(user.id)
     
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
@@ -645,21 +644,44 @@ async def handle_document(message: types.Message):
 
     receipt_data = await parse_kaspi_receipt(file_path)
     
-    await message.answer(f"Данные чека:\nИИН: {receipt_data['iin']}\nСумма: {receipt_data['amount']}\nНомер чека: {receipt_data['check_number']}")
-    
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
+    
+    # Проверяем, что все обязательные поля есть
+    required_fields = ["amount", "check_number", "fp", "date_time", "iin", "buyer_name"]
+    missing_fields = [field for field in required_fields if receipt_data.get(field) is None]
+    
+    if missing_fields:
+        return await message.answer(
+            f"❌ В чеке отсутствуют обязательные данные: {', '.join(missing_fields)}.\n"
+            "Убедитесь, что чек содержит всю необходимую информацию."
+        )
+    
+    try:
+        # Преобразуем дату в формат для базы данных
+        date_time = datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M")
+    except ValueError as e:
+        return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
 
+    await message.answer(
+        f"Данные чека:\n"
+        f"ИИН: {receipt_data['iin']}\n"
+        f"Сумма: {receipt_data['amount']}\n"
+        f"Номер чека: {receipt_data['check_number']}\n"
+        f"Дата: {receipt_data['date_time']}"
+    )
+    
+    expire_time, tariff = await get_user_access(user.id)
     required_amounts = {
         "self": 100,
         "basic": 50000,
         "pro": 250000,
         "2025": 100,
-        "2026": 100 ,
+        "2026": 100,
         "2027": 100,
         "2028": 100,
         "2029": 100,
-        "2030": 100 ,
+        "2030": 100,
         "2031": 100
     }
 
@@ -678,22 +700,26 @@ async def handle_document(message: types.Message):
         amount=receipt_data["amount"],
         check_number=receipt_data["check_number"],
         fp=receipt_data["fp"],
-        date_time=datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M"),
+        date_time=date_time,
         buyer_name=receipt_data["buyer_name"],
         file_id=file_id
     ):
         return await message.answer("❌ Ошибка при сохранении чека")
 
     # Автоматическая активация доступа
-    if tariff in ["self", "basic", "pro"]:
+    if tariff in ["self", "basic", "pro"] + [str(y) for y in range(2025, 2032)]:
         duration = {
             "self": 7,
             "basic": 30,
-            "pro": 60
+            "pro": 60,
+            **{str(y): 7 for y in range(2025, 2032)}
         }.get(tariff, 7) * 86400
         
         await set_user_access(user.id, time.time() + duration, tariff)
-        await message.answer(f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!", reply_markup=materials_keyboard)
+        await message.answer(
+            f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
+            reply_markup=materials_keyboard
+        )
 
     # Уведомление админу
     info = (
