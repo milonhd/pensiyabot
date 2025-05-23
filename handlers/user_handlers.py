@@ -1,3 +1,4 @@
+# handlers/user_handlers.py
 import logging
 import time
 from aiogram import F, Bot, types, Dispatcher
@@ -16,6 +17,7 @@ async def show_main_menu(message: types.Message, text: str = None):
     else:
         await message.answer("🏠 Главное меню:", reply_markup=get_main_menu_keyboard(ADMIN_ID, message.from_user.id))
 
+# Декоратор @Command("start") остается, так как он не является Command фильтром
 @Command("start")
 @F.chat.type == ChatType.PRIVATE
 async def cmd_start(message: types.Message):
