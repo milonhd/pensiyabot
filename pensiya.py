@@ -23,10 +23,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
 
-API_TOKEN = os.environ.get('API_TOKEN')
-if not API_TOKEN:
-    logging.error("API_TOKEN был не найден.")
-    exit(1) 
+API_TOKEN = 957724800
 
 ADMIN_ID = os.environ.get('ADMIN_ID')
 if not ADMIN_ID:
