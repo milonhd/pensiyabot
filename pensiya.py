@@ -381,6 +381,10 @@ async def check_status(message: types.Message):
         expire_time, tariff = await get_user_access(user_id)
         
         if expire_time and expire_time > time.time():
+            
+        remaining_seconds = expire_time - time.time()
+        days = int(remaining_seconds // (24 * 60 * 60))
+        
         formatted_time = datetime.fromtimestamp(expire_time).strftime('%H:%M %d.%m.%Y')
 
             if tariff:
