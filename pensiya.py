@@ -795,7 +795,7 @@ async def check_access_periodically():
                     logging.warning(f"Не удалось отправить уведомление администратору: {e}")
 
                 # Удаляем из базы данных
-                await delete_user_access(user_id)
+                await revoke_user_access(user_id)
 
         except Exception as e:
             logging.error(f"Ошибка в проверке доступа: {e}")
