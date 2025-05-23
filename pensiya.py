@@ -23,12 +23,12 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
 
-API_TOKEN = 957724800
-
-ADMIN_ID = os.environ.get('ADMIN_ID')
-if not ADMIN_ID:
-    logging.error("ADMIN_ID был не найден.")
+API_TOKEN = os.environ.get('API_TOKEN')
+if not API_TOKEN:
+    logging.error("API_TOKEN был не найден.")
     exit(1) 
+
+ADMIN_ID = 957724800
 
 GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]
 RECEIPT_DIR = "/app/receipts"
