@@ -1,3 +1,4 @@
+# handlers/admin_handlers.py
 import logging
 import time
 import asyncio
@@ -16,7 +17,7 @@ class BroadcastStates(StatesGroup):
     waiting_content = State()
     waiting_confirm = State()
 
-@Command("g")
+# Удален декоратор @Command("g")
 @F.chat.type == ChatType.PRIVATE
 async def grant_access(message: types.Message, bot: Bot):
     if message.from_user.id != ADMIN_ID:
@@ -52,7 +53,7 @@ async def grant_access(message: types.Message, bot: Bot):
         logger.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
 
-@Command("revoke")
+# Удален декоратор @Command("revoke")
 @F.chat.type == ChatType.PRIVATE
 async def revoke_access(message: types.Message, bot: Bot):
     if message.from_user.id != ADMIN_ID:
@@ -85,7 +86,7 @@ async def revoke_access(message: types.Message, bot: Bot):
         logger.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
 
-@Command("status")
+# Удален декоратор @Command("status")
 @F.chat.type == ChatType.PRIVATE
 async def check_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -118,7 +119,7 @@ async def check_status(message: types.Message):
         logger.error(f"Ошибка: {e}")
         await message.answer("Ошибка при проверке статуса.")
 
-@Command("help")
+# Удален декоратор @Command("help")
 @F.chat.type == ChatType.PRIVATE
 async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -131,7 +132,7 @@ async def help_admin(message: types.Message):
 /help - команды
     """)
 
-@Command("users")
+# Удален декоратор @Command("users")
 @F.chat.type == ChatType.PRIVATE
 async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -147,6 +148,7 @@ async def show_users(message: types.Message):
     ]
     await message.answer("\n".join(lines))
 
+# Декоратор F.text == "📢 Рассылка" остается, так как он не является Command фильтром
 @F.text == "📢 Рассылка"
 @F.chat.type == ChatType.PRIVATE
 async def start_broadcast(message: types.Message, state: FSMContext):
@@ -184,7 +186,7 @@ async def process_content(message: types.Message, state: FSMContext):
         if content['photo']:
             await message.answer_photo(content['photo'], caption=preview_text)
         elif content['video']:
-            await message.answer_video(content['video'], caption=preview_text)
+            await message.video(content['video'], caption=preview_text)
         elif content['document']:
             await message.answer_document(content['document'], caption=preview_text)
         else:
