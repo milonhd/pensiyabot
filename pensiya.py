@@ -19,10 +19,8 @@ from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
-# Конфигурация для PostgreSQL
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
-    # Локальная конфигурация для тестирования
     DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
 
 API_TOKEN = os.environ.get('API_TOKEN')
@@ -52,16 +50,13 @@ class BroadcastStates(StatesGroup):
     waiting_confirm = State()
     waiting_time = State()
 
-# Подключение к базе данных
 async def create_pool():
     return await aiopg.create_pool(DATABASE_URL)
 
-# Создание таблиц (если они еще не созданы)
 async def init_db():
     pool = await create_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # Таблица для хранения доступов пользователей
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS user_access (
                 user_id BIGINT PRIMARY KEY,
@@ -76,7 +71,6 @@ async def init_db():
                 ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()
             """)
-            # Новая таблица для чеков
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS fiscal_checks (
                 id SERIAL PRIMARY KEY,
@@ -140,7 +134,6 @@ async def check_duplicate_file(file_id):
             await cur.execute("SELECT 1 FROM fiscal_checks WHERE file_id = %s", (file_id,))
             return await cur.fetchone() is not None
 
-# Функции для работы с базой данных
 async def set_user_access(user_id, expire_time, tariff):
     pool = await create_pool()
     async with pool.acquire() as conn:
@@ -239,7 +232,6 @@ async def get_all_users():
     await pool.wait_closed()
     return users
 
-# Кнопки 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
@@ -267,7 +259,6 @@ async def cmd_start(message: types.Message):
     user = message.from_user
     name = user.first_name or "Пользователь"
 
-    # Создаем основную клавиатуру
     main_kb = ReplyKeyboardBuilder()
     main_kb.button(text="📄 Публичная оферта")
     main_kb.button(text="📞 Поддержка")
@@ -275,7 +266,7 @@ async def cmd_start(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         main_kb.button(text="📢 Рассылка")
     
-    main_kb.adjust(2)  # 2 кнопки в ряд
+    main_kb.adjust(2)  
     
     if message.from_user.id == ADMIN_ID:
         await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
@@ -305,7 +296,7 @@ async def cmd_start(message: types.Message):
             await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
             await message.answer(
                 "👇 Выберите желаемый уровень:",
-                reply_markup=main_keyboard  # это InlineKeyboardMarkup
+                reply_markup=main_keyboard  
             )
 
 
@@ -342,7 +333,6 @@ async def grant_access(message: types.Message):
         logging.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
 
-
 @dp.message(Command("revoke"), F.chat.type == ChatType.PRIVATE)
 async def revoke_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -358,16 +348,14 @@ async def revoke_access(message: types.Message):
         
         if expire_time:
             await revoke_user_access(user_id)
-            # Уведомление для пользователя
             await bot.send_message(user_id, "❌ Ваш доступ был отозван. Теперь вы не можете получать материалы.")
 
-            # Уведомление для администратора
             await bot.send_message(ADMIN_ID, f"Доступ пользователя {user_id} был отозван.")
 
             for group_id in GROUP_IDS:
                 try:
                     await bot.ban_chat_member(group_id, user_id)
-                    await bot.unban_chat_member(group_id, user_id)  # чтобы он мог снова вступить позже
+                    await bot.unban_chat_member(group_id, user_id)  
                     logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
                 except Exception as e:
                     logging.error(f"Не удалось удалить пользователя из группы {group_id}: {e}")
@@ -377,7 +365,6 @@ async def revoke_access(message: types.Message):
     except Exception as e:
         logging.error(f"Ошибка: {e}")
         await message.answer("Произошла ошибка.")
-
 
 @dp.message(Command("status"), F.chat.type == ChatType.PRIVATE)
 async def check_status(message: types.Message):
@@ -411,7 +398,6 @@ async def check_status(message: types.Message):
         logging.error(f"Ошибка: {e}")
         await message.answer("Ошибка при проверке статуса.")
 
-
 @dp.message(Command("help"), F.chat.type == ChatType.PRIVATE)
 async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -423,7 +409,6 @@ async def help_admin(message: types.Message):
 /users - показать всех с доступом
 /help - команды
     """)
-
 
 @dp.message(Command("users"), F.chat.type == ChatType.PRIVATE)
 async def show_users(message: types.Message):
@@ -496,12 +481,10 @@ async def handle_screenshot(call: types.CallbackQuery):
         "3. Отправьте чек в этот чат\n\n"
     )
 
-# Обновляем функцию set_user_access
 async def set_user_access(user_id, expire_time, tariff):
     pool = await create_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # Не перезаписываем существующий активный доступ
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff)
             VALUES (%s, %s, %s)
@@ -528,7 +511,7 @@ async def set_user_access(user_id, expire_time, tariff):
 )
 async def handle_callback(call: types.CallbackQuery):
     if call.message.chat.type != ChatType.PRIVATE:
-        return  # Не обрабатываем не-приватные чаты
+        return 
     
     data = call.data
     user_id = call.from_user.id
@@ -567,7 +550,7 @@ async def handle_callback(call: types.CallbackQuery):
         reply_markup=keyboard)
 
     elif data == "pro":
-        await set_user_access(user_id, None, "pro")  # Временно сохраняем выбор
+        await set_user_access(user_id, None, "pro")  
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
             [InlineKeyboardButton(text="📄 Отправить чек", callback_data="send_screenshot_pro")]
@@ -575,7 +558,6 @@ async def handle_callback(call: types.CallbackQuery):
         await call.message.answer("❌ Временно недоступно", reply_markup=keyboard)
     
     elif data == "get_materials":
-        # Деактивируем кнопку сразу после нажатия
         await call.answer()
         await call.message.edit_reply_markup(
             reply_markup=InlineKeyboardMarkup(
@@ -591,7 +573,6 @@ async def handle_callback(call: types.CallbackQuery):
         if not expire_time or expire_time < time.time():
             return await call.message.answer("❌ У вас нет активного доступа.")
 
-        # Сопоставление тарифов и ID групп
         tariff_chat_map = {
             "basic": -1002583988789,
             "2025": -1002529607781,
@@ -608,20 +589,17 @@ async def handle_callback(call: types.CallbackQuery):
             return await call.message.answer("❌ Не удалось определить канал по вашему тарифу.")
 
         try:
-            # Создаем временную ссылку (15 секунд)
             invite = await bot.create_chat_invite_link(
                 chat_id=chat_id,
                 member_limit=1,
                 expire_date=int(time.time()) + 15,
                 creates_join_request=False
             )
-        
-            # Отправляем сообщение со ссылкой
+  
             msg = await call.message.answer(
                 f"🔐 Ваша персональная ссылка (исчезнет спустя 15 секунд):\n{invite.invite_link}"
             )
             
-            # Удаляем сообщение через 15 секунд
             await asyncio.sleep(15)
             try:
                 await msg.delete()
@@ -632,7 +610,6 @@ async def handle_callback(call: types.CallbackQuery):
             logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
             await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
-# Обработчик для неактивной кнопки
 @dp.callback_query(F.data == "used_link")
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
@@ -648,8 +625,7 @@ async def handle_document(message: types.Message):
     file_id = message.document.file_id
     if await check_duplicate_file(file_id):
         return await message.answer("❌ Этот чек уже был загружен ранее")
-    
-    # Сохраняем файл в папку /app/receipts
+  
     file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
     await bot.download(file=await bot.get_file(file_id), destination=file_path)
 
@@ -657,8 +633,7 @@ async def handle_document(message: types.Message):
     
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
-    
-    # Проверяем, что все обязательные поля есть
+  
     required_fields = ["amount", "check_number", "fp", "date_time", "iin", "buyer_name"]
     missing_fields = [field for field in required_fields if receipt_data.get(field) is None]
     
@@ -669,7 +644,6 @@ async def handle_document(message: types.Message):
         )
     
     try:
-        # Преобразуем дату в формат для базы данных
         date_time = datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M")
     except ValueError as e:
         return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
@@ -717,7 +691,6 @@ async def handle_document(message: types.Message):
     ):
         return await message.answer("❌ Ошибка при сохранении чека")
 
-    # Автоматическая активация доступа
     if tariff in ["self", "basic", "pro"] + [str(y) for y in range(2025, 2032)]:
         duration = {
             "self": 7,
@@ -732,7 +705,6 @@ async def handle_document(message: types.Message):
             reply_markup=materials_keyboard
         )
 
-    # Уведомление админу
     info = (
         f"📄 Фискальный чек от пользователя:\n"
         f"🆔 ID: {user.id}\n"
@@ -744,7 +716,6 @@ async def handle_document(message: types.Message):
     await bot.send_message(ADMIN_ID, info)
     await bot.send_document(ADMIN_ID, message.document.file_id)
     
-# Удаление сообщений о входе новых участников
 @dp.message(F.new_chat_members)
 async def remove_join_message(message: types.Message):
     try:
@@ -752,7 +723,6 @@ async def remove_join_message(message: types.Message):
     except Exception as e:
         logging.warning(f"Не удалось удалить join-сообщение: {e}")
 
-# Удаление сообщений о выходе участников
 @dp.message(F.left_chat_member)
 async def remove_leave_message(message: types.Message):
     try:
@@ -760,9 +730,7 @@ async def remove_leave_message(message: types.Message):
     except Exception as e:
         logging.warning(f"Не удалось удалить leave-сообщение: {e}")
 
-
-# 🔁 Проверка доступа каждые 10 сек
-GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]  # список ID групп
+GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]  
 
 async def check_access_periodically():
     while True:
@@ -770,22 +738,19 @@ async def check_access_periodically():
             expired_users = await get_expired_users()
 
             for user_id, tariff in expired_users:
-                # Удаление из групп
                 for group_id in GROUP_IDS:
                     try:
-                        await bot.ban_chat_member(group_id, user_id)  # бан
-                        await bot.unban_chat_member(group_id, user_id)  # сразу разбан, чтобы можно было вернуться
+                        await bot.ban_chat_member(group_id, user_id) 
+                        await bot.unban_chat_member(group_id, user_id)  
                         logging.info(f"Пользователь {user_id} удалён из группы {group_id}")
                     except Exception as e:
                         logging.warning(f"Не удалось удалить пользователя {user_id} из группы {group_id}: {e}")
 
-                # Уведомление пользователя
                 try:
                     await bot.send_message(user_id, "❌ Ваш доступ истёк. Вы были удалены из группы.")
                 except Exception as e:
                     logging.warning(f"Не удалось отправить уведомление пользователю {user_id}: {e}")
 
-                # Уведомление администратора
                 try:
                     await bot.send_message(
                         ADMIN_ID,
@@ -794,7 +759,6 @@ async def check_access_periodically():
                 except Exception as e:
                     logging.warning(f"Не удалось отправить уведомление администратору: {e}")
 
-                # Удаляем из базы данных
                 await revoke_user_access(user_id)
 
         except Exception as e:
@@ -810,7 +774,6 @@ async def approve_user(call: types.CallbackQuery):
     user_id = int(call.data.split("_")[1])
     _, tariff = await get_user_access(user_id)
 
-    # Проверка наличия чека
     pool = await create_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
@@ -821,7 +784,6 @@ async def approve_user(call: types.CallbackQuery):
     if not tariff:
         return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
 
-    # Длительность доступа
     if tariff == "basic":
         duration = 30 * 86400
     elif tariff == "pro":
@@ -831,18 +793,14 @@ async def approve_user(call: types.CallbackQuery):
     else:
         return await call.answer("❌ Неизвестный тариф.")
 
-    # Сохраняем
     expire_time = time.time() + duration
     await set_user_access(user_id, expire_time, tariff)
 
-    # Лог (сохраняем в файл)
     with open("access_log.txt", "a", encoding="utf-8") as f:
         f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
 
-    # Уведомление пользователю
     await bot.send_message(user_id, f"✅ Доступ уровня {tariff.upper()} выдан на {duration // 86400} дней!", reply_markup=materials_keyboard)
 
-    # Убираем кнопку
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
 
@@ -850,13 +808,13 @@ async def check_subscriptions():
     while True:
         users = await get_all_active_users()
         for user_id, expire_time, _ in users:
-            if (expire_time - time.time()) < 86400 * 3:  # За 3 дня до истечения
+            if (expire_time - time.time()) < 86400 * 3: 
                 await bot.send_message(
                     user_id,
                     f"⚠️ Ваш доступ истекает через 3 дня!",
                     reply_markup=main_keyboard
                 )
-        await asyncio.sleep(3600)  # Проверка каждый час
+        await asyncio.sleep(3600) 
 
 @dp.message(F.text == "📞 Поддержка", F.chat.type == ChatType.PRIVATE)
 async def handle_support_button(message: types.Message):
@@ -886,7 +844,6 @@ async def start_broadcast(message: types.Message, state: FSMContext):
 
 @dp.message(BroadcastStates.waiting_content)
 async def process_content(message: types.Message, state: FSMContext):
-    # Обработка контента
     content = {
         'text': message.html_text if message.text else message.caption if message.caption else "",
         'photo': message.photo[-1].file_id if message.photo else None,
@@ -958,33 +915,28 @@ async def show_main_menu(message: types.Message, text: str = None):
         await message.answer("🏠 Главное меню:", reply_markup=main_kb.as_markup(resize_keyboard=True))
 
 async def send_broadcast(message: types.Message, state: FSMContext):
-    # Получаем данные из состояния
     data = await state.get_data()
     if 'content' not in data:
         await message.answer("❌ Ошибка: данные рассылки не найдены", reply_markup=types.ReplyKeyboardRemove())
         await state.clear()
         return
-    
-    # Получаем список всех пользователей
+ 
     users = await get_all_users()
     if not users:
         await message.answer("❌ Нет пользователей для рассылки", reply_markup=types.ReplyKeyboardRemove())
         await state.clear()
         return
-    
-    # Отправляем сообщение о начале рассылки
+   
     progress_msg = await message.answer("🔄 Начинаем рассылку...")
     
     success = 0
     errors = 0
     total_users = len(users)
-    
-    # Отправляем сообщения с прогресс-баром
+ 
     for index, user_id in enumerate(users, 1):
         try:
             content = data['content']
-            
-            # Отправка в зависимости от типа контента
+      
             if content.get('photo'):
                 await bot.send_photo(
                     chat_id=user_id,
@@ -1014,8 +966,7 @@ async def send_broadcast(message: types.Message, state: FSMContext):
                 )
             
             success += 1
-            
-            # Обновляем прогресс каждые 10 сообщений или для последнего сообщения
+       
             if index % 10 == 0 or index == total_users:
                 progress = int(index / total_users * 100)
                 await progress_msg.edit_text(
@@ -1028,17 +979,14 @@ async def send_broadcast(message: types.Message, state: FSMContext):
         except Exception as e:
             errors += 1
             logger.error(f"Ошибка отправки пользователю {user_id}: {str(e)}")
-            
-            # Делаем небольшую паузу при ошибках, чтобы не получить flood control
+         
             await asyncio.sleep(1)
-    
-    # Удаляем сообщение о прогрессе
+  
     try:
         await progress_msg.delete()
     except:
         pass
-    
-    # Отправляем финальный отчет
+  
     report_message = (
         f"📊 Рассылка завершена!\n\n"
         f"👥 Всего пользователей: {total_users}\n"
@@ -1067,13 +1015,11 @@ async def execute_scheduled_broadcast(content: dict):
 
 @dp.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 async def ignore_group_messages(message: types.Message):
-    pass  # Просто игнорируем все сообщения из групп
+    pass  
 
 async def delete_bot_commands():
-    # Удаляем команды для обычных пользователей
     await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
-    
-    # Также удаляем команды по умолчанию (на всякий случай)
+   
     await bot.delete_my_commands()
     
 async def on_startup():
@@ -1082,9 +1028,7 @@ async def on_startup():
     scheduler.start()
 
 async def main():
-    # Инициализация базы данных при запуске
     await init_db()
-    # Запуск периодической проверки доступов
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
