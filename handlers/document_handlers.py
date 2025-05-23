@@ -1,10 +1,10 @@
+# handlers/document_handlers.py
 import logging
 import os
 import re
-import time
 import pdfplumber
-from aiogram.enums import ChatType
 from datetime import datetime
+from aiogram.enums import ChatType
 from aiogram import F, Bot, types, Dispatcher
 from database import get_user_access, set_user_access, save_receipt, check_duplicate_file
 from config import ADMIN_ID, RECEIPT_DIR
@@ -141,6 +141,7 @@ async def handle_document(message: types.Message, bot: Bot):
 
     await bot.send_message(ADMIN_ID, info)
     await bot.send_document(ADMIN_ID, message.document.file_id)
+
 
 def register_document_handlers(dp: Dispatcher):
     dp.message.register(handle_document, F.document)
