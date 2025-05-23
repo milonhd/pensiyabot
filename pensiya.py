@@ -17,6 +17,7 @@ from aiogram.types import FSInputFile
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from dotenv import load_dotenv
 
 # Конфигурация для PostgreSQL
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -24,8 +25,16 @@ if not DATABASE_URL:
     # Локальная конфигурация для тестирования
     DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
 
-API_TOKEN = '7964267404:AAGecVUXWNcf7joR-wM5Z9A92m7-HOkh0RM'
-ADMIN_ID = 957724800
+API_TOKEN = os.environ.get('API_TOKEN')
+if not API_TOKEN:
+    logging.error("API_TOKEN был не найден.")
+    exit(1) 
+
+ADMIN_ID = os.environ.get('ADMIN_ID')
+if not ADMIN_ID:
+    logging.error("ADMIN_ID был не найден.")
+    exit(1) 
+
 GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]
 RECEIPT_DIR = "/app/receipts"
 
