@@ -423,11 +423,12 @@ async def show_users(message: types.Message):
     if not active_users:
         return await message.answer("Пока нет пользователей с доступом.")
     
-   lines = [ ]
+   lines = [ 
    for uid, exp, tariff, username in active_users:
         username = f"@{username}" if username else "без username"
         expire_date = datetime.fromtimestamp(exp).strftime('%H:%M %d.%m.%Y')
         lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
+    ]
     await message.answer("\n".join(lines))
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
