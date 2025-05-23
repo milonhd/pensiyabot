@@ -65,6 +65,8 @@ async def init_db():
             """)
             await cur.execute("""
                 ALTER TABLE user_access 
+                ALTER COLUMN expire_time TYPE TIMESTAMP 
+                USING to_timestamp(expire_time);
                 ADD COLUMN IF NOT EXISTS username VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS first_name VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
@@ -185,7 +187,7 @@ async def get_all_active_users():
     current_time = time.time()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT user_id, expire_time, tariff FROM user_access WHERE expire_time > %s", (current_time,))
+            await cur.execute("SELECT user_id, expire_time, tariff, username FROM user_access WHERE expire_time > %s", (current_time,))
             result = await cur.fetchall()
     pool.close()
     await pool.wait_closed()
@@ -379,12 +381,11 @@ async def check_status(message: types.Message):
         expire_time, tariff = await get_user_access(user_id)
         
         if expire_time and expire_time > time.time():
-            remaining_seconds = expire_time - time.time()
-            days = int(remaining_seconds // (24 * 60 * 60))
+        formatted_time = datetime.fromtimestamp(expire_time).strftime('%H:%M %d.%m.%Y')
 
             if tariff:
                 await message.answer(
-                    f"✅ У пользователя {user_id} есть доступ ({tariff.upper()}). Осталось дней: {days}."
+                    f"✅ У пользователя {user_id} есть доступ ({tariff.upper()}). Истекает: {formatted_time}."
                 )
             else:
                 await message.answer(
@@ -418,10 +419,11 @@ async def show_users(message: types.Message):
     if not active_users:
         return await message.answer("Пока нет пользователей с доступом.")
     
-    lines = [
-        f"{uid} - до {time.ctime(exp)} ({tariff})"
-        for uid, exp, tariff in active_users
-    ]
+   lines = [ ]
+   for uid, exp, tariff, username in active_users:
+        username = f"@{username}" if username else "без username"
+        expire_date = datetime.fromtimestamp(exp).strftime('%H:%M %d.%m.%Y')
+        lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
     await message.answer("\n".join(lines))
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
