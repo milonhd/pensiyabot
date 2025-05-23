@@ -19,6 +19,8 @@ from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
+load_dotenv()
+
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     DATABASE_URL = "postgres://username:password@localhost:5432/telegrambot"
