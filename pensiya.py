@@ -138,13 +138,13 @@ async def check_duplicate_file(file_id):
             return await cur.fetchone() is not None
 
 async def set_user_access(user_id, expire_time, tariff):
-    async with await get_db_connection() as conn:
+    async with await get_db_connection() as conn: 
         async with conn.cursor() as cur:
             if expire_time is not None:
                 expire_timestamp = datetime.fromtimestamp(expire_time)
             else:
                 expire_timestamp = None
-                
+
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
             VALUES (%s, %s, %s, NOW())
@@ -171,7 +171,7 @@ async def get_user_access(user_id):
             """, (user_id,))
             row = await cur.fetchone()
             if row:
-                expire_timestamp = row[0].timestamp() if row[0] else None
+                expire_timestamp = row[0].timestamp() if row[0] else None 
                 return expire_timestamp, row[1]
             return None, None
 
