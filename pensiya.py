@@ -33,6 +33,8 @@ ADMIN_ID = 957724800
 GROUP_IDS = [-1002583988789, -1002529607781, -1002611068580, -1002607289832, -1002560662894, -1002645685285, -1002529375771, -1002262602915]
 RECEIPT_DIR = "/app/receipts"
 
+os.makedirs(RECEIPT_DIR, exist_ok=True)
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
