@@ -19,7 +19,7 @@ from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from database import DATABASE_URL, create_db_pool, close_db_pool, init_db, get_db_connection
-from reviews import register_review_handlers
+from reviews import register_reviews_handlers
 
 load_dotenv()
 
