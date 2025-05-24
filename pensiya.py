@@ -98,11 +98,6 @@ async def init_db():
             ALTER TABLE user_access 
             ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT NOW(),
             """)
-
-            await cur.execute("""
-            ALTER TABLE user_access ALTER COLUMN expire_time TYPE TIMESTAMP
-            USING to_timestamp(expire_time)::timestamp
-            """)
             
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS fiscal_checks (
