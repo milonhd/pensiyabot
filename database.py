@@ -2,6 +2,7 @@ import os
 import logging
 import aiopg
 import time
+from aiogram import types
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
