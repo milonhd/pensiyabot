@@ -492,9 +492,14 @@ async def handle_callback(call: types.CallbackQuery):
             await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
 @dp.callback_query(F.data == "start_review")
-async def handle_start_review(call: types.CallbackQuery):
+async def handle_start_review(call: types.CallbackQuery, state: FSMContext):
+    fake_call = types.CallbackQuery(
+        data=f"start_review_{call.from_user.id}",
+        message=call.message,
+        from_user=call.from_user
+    )
     from reviews import start_review
-    await start_review(call)
+    await start_review(fake_call, state)
 
 @dp.callback_query(F.data == "used_link")
 async def handle_used_link(call: types.CallbackQuery):
