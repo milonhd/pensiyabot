@@ -98,6 +98,12 @@ async def init_db():
             ALTER TABLE user_access 
             ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT NOW()
             """)
+
+            await cur.execute("""
+            ALTER TABLE user_access 
+            ALTER COLUMN expire_time TYPE TIMESTAMP 
+            USING TO_TIMESTAMP(expire_time)
+            """)
             
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS fiscal_checks (
@@ -137,23 +143,25 @@ async def check_duplicate_file(file_id):
             await cur.execute("SELECT 1 FROM fiscal_checks WHERE file_id = %s", (file_id,))
             return await cur.fetchone() is not None
 
-async def set_user_access(user_id, expire_time, tariff):
-    async with await get_db_connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("""
-                INSERT INTO user_access (user_id, expire_time, tariff)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id) DO UPDATE 
-                SET 
-                    expire_time = CASE 
-                        WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
-                        ELSE user_access.expire_time 
-                    END,
-                    tariff = CASE 
-                        WHEN TO_TIMESTAMP(user_access.expire_time) < NOW() THEN EXCLUDED.tariff 
-                        ELSE user_access.tariff 
-                    END
-            """, (user_id, expire_time, tariff))
+async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
+    try:
+        expire_time = datetime.now() + timedelta(days=duration_days)
+        
+        async with await get_db_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (user_id) DO UPDATE 
+                    SET 
+                        expire_time = EXCLUDED.expire_time,
+                        tariff = EXCLUDED.tariff,
+                        last_activity = NOW()
+                """, (user_id, expire_time, tariff))
+        return True
+    except Exception as e:
+        logging.error(f"Ошибка выдачи доступа: {e}")
+        return False
 
 async def get_user_access(user_id):
     async with await get_db_connection() as conn:
@@ -184,7 +192,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE TO_TIMESTAMP(expire_time) > NOW()
+                WHERE expire_time > NOW()
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -195,7 +203,7 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE TO_TIMESTAMP(expire_time) > NOW()
+                WHERE expire_time > NOW()
                 AND expire_time > NOW() - INTERVAL '1 hour'
             """)
             return await cur.fetchall()
@@ -238,14 +246,14 @@ async def get_stats():
           
             await cur.execute("""
                 SELECT COUNT(*) FROM user_access 
-                WHERE TO_TIMESTAMP(expire_time) > NOW()
+                WHERE expire_time > NOW()
             """)
             active_users = (await cur.fetchone())[0]
            
             await cur.execute("""
                 SELECT tariff, COUNT(*) 
                 FROM user_access 
-                WHERE TO_TIMESTAMP(expire_time) > NOW()
+                WHERE expire_time > NOW()
                 GROUP BY tariff
             """)
             tariff_stats = await cur.fetchall()
@@ -366,34 +374,39 @@ async def cmd_start(message: types.Message):
 async def grant_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("❌ Нет доступа.")
+
     args = message.text.split()
     if len(args) < 3:
         return await message.answer("Использование: /g [id] [basic/pro/2025-2031]")
+
     try:
         user_id = int(args[1])
         tariff = args[2].lower()
-        if tariff not in ["basic", "pro"] + [str(y) for y in range(2025, 2032)]:
-            return await message.answer("Тариф должен быть 'basic', 'pro' или '2025'-'2031'.")
 
-        if tariff == "basic":
-            duration = 30 * 24 * 60 * 60
-        elif tariff == "pro":
-            duration = 60 * 24 * 60 * 60
+        duration_map = {
+            "self": 7,
+            "basic": 30,
+            "pro": 60,
+            **{str(year): 7 for year in range(2025, 2032)} 
+        }
+
+        if tariff not in duration_map:
+            return await message.answer("❌ Неверный тариф. Допустимые: basic, pro, 2025-2031")
+
+        duration_days = duration_map[tariff]
+
+        success = await set_user_access(user_id, duration_days, tariff)
+        
+        if success:
+            expire_date = (datetime.now() + timedelta(days=duration_days)).strftime("%d.%m.%Y %H:%M")
+            await message.answer(f"✅ Пользователю {user_id} выдан доступ до {expire_date} ({tariff.upper()})")
+            await bot.send_message(user_id, f"🔑 Ваш доступ уровня {tariff.upper()} активен до {expire_date}!")
         else:
-            duration = 7 * 24 * 60 * 60
+            await message.answer("❌ Ошибка при выдаче доступа")
 
-        expire_time = time.time() + duration
-        await set_user_access(user_id, expire_time, tariff)
-
-        await message.answer(f"Доступ выдан пользователю {user_id} ({tariff}) на {duration // 86400} дней.")
-        await bot.send_message(
-            user_id,
-            f"✅ Доступ к материалам уровня {tariff.upper()} активирован на {duration // 86400} дней!",
-            reply_markup=materials_keyboard
-        )
     except Exception as e:
-        logging.error(f"Ошибка: {e}")
-        await message.answer("Произошла ошибка.")
+        logging.error(f"Ошибка в /g: {e}")
+        await message.answer("❌ Проверьте правильность аргументов")
 
 @dp.message(Command("revoke"), F.chat.type == ChatType.PRIVATE)
 async def revoke_access(message: types.Message):
