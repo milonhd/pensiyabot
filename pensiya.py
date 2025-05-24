@@ -89,8 +89,14 @@ async def init_db():
                 username VARCHAR(255),
                 first_name VARCHAR(255),
                 last_name VARCHAR(255),
-                joined_at TIMESTAMP DEFAULT NOW()
+                joined_at TIMESTAMP DEFAULT NOW(),
+                last_activity TIMESTAMP DEFAULT NOW()
             )
+            """)
+            
+            await cur.execute("""
+            ALTER TABLE user_access 
+            ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT NOW()
             """)
             
             await cur.execute("""
@@ -132,20 +138,15 @@ async def check_duplicate_file(file_id):
             return await cur.fetchone() is not None
 
 async def set_user_access(user_id, expire_time, tariff):
-    async with await get_db_connection() as conn: 
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
-            if expire_time is not None:
-                expire_timestamp = datetime.fromtimestamp(expire_time)
-            else:
-                expire_timestamp = None
-
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
-            VALUES (%s, %s, %s, NOW())
+            VALUES (%s, TO_TIMESTAMP(%s), %s, NOW())
             ON CONFLICT (user_id) DO UPDATE 
             SET 
                 expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
@@ -153,7 +154,7 @@ async def set_user_access(user_id, expire_time, tariff):
                     ELSE user_access.tariff 
                 END,
                 last_activity = NOW()
-            """, (user_id, expire_timestamp, tariff))
+            """, (user_id, expire_time, tariff))
 
 async def get_user_access(user_id):
     async with await get_db_connection() as conn:
@@ -165,7 +166,7 @@ async def get_user_access(user_id):
             """, (user_id,))
             row = await cur.fetchone()
             if row:
-                expire_timestamp = row[0].timestamp() if row[0] else None 
+                expire_timestamp = row[0].timestamp() if row[0] else None
                 return expire_timestamp, row[1]
             return None, None
 
@@ -184,7 +185,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE expire_time > NOW()
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -195,8 +196,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE expire_time <= NOW()
-                AND expire_time > NOW() - INTERVAL '1 hour'
+                WHERE EXTRACT(epoch FROM expire_time) <= EXTRACT(epoch FROM NOW())
+                AND EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW()) - 3600
             """)
             return await cur.fetchall()
 
@@ -230,6 +231,67 @@ async def update_user_activity(user_id):
                 WHERE user_id = %s
             """, (user_id,))
 
+async def get_stats():
+    async with await get_db_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM user_access")
+            total_users = (await cur.fetchone())[0]
+            
+            # Исправлено: используем EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+            await cur.execute("""
+                SELECT COUNT(*) FROM user_access 
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+            """)
+            active_users = (await cur.fetchone())[0]
+           
+            await cur.execute("""
+                SELECT tariff, COUNT(*) 
+                FROM user_access 
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                GROUP BY tariff
+            """)
+            tariff_stats = await cur.fetchall()
+            
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM fiscal_checks 
+                WHERE created_at > NOW() - INTERVAL '30 days'
+            """)
+            receipts_30d = (await cur.fetchone())[0]
+          
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM user_access 
+                WHERE last_activity > NOW() - INTERVAL '7 days'
+            """)
+            active_7d = (await cur.fetchone())[0]
+            
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM user_access 
+                WHERE joined_at > NOW() - INTERVAL '30 days'
+            """)
+            new_users_30d = (await cur.fetchone())[0]
+          
+            await cur.execute("""
+                SELECT tariff, COUNT(*) as cnt
+                FROM fiscal_checks fc
+                JOIN user_access ua ON fc.user_id = ua.user_id
+                WHERE fc.created_at > NOW() - INTERVAL '30 days'
+                GROUP BY tariff
+                ORDER BY cnt DESC
+            """)
+            popular_tariffs = await cur.fetchall()
+            
+            return {
+                'total_users': total_users,
+                'active_users': active_users,
+                'tariff_stats': tariff_stats,
+                'receipts_30d': receipts_30d,
+                'active_7d': active_7d,
+                'new_users_30d': new_users_30d,
+                'popular_tariffs': popular_tariffs
+            }
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
@@ -411,6 +473,7 @@ async def help_admin(message: types.Message):
 /g [id] [basic/pro/2025-2031] - выдать доступ
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
+/stats - статистика бота
 /users - показать всех с доступом
 /help - команды
     """)
@@ -431,6 +494,61 @@ async def show_users(message: types.Message):
         lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
     await message.answer("\n".join(lines))
 
+@dp.message(Command("stats"), F.chat.type == ChatType.PRIVATE)
+async def show_stats(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return await message.answer("❌ Нет доступа.")
+    
+    try:
+        stats = await get_stats()
+     
+        tariff_text = ""
+        for tariff, count in stats['tariff_stats']:
+            if tariff:
+                tariff_display = {
+                    'basic': 'БАЗОВЫЙ',
+                    'pro': 'ПРО', 
+                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
+                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
+                tariff_text += f"  • {tariff_display}: {count}\n"
+      
+        popular_text = ""
+        for tariff, count in stats['popular_tariffs'][:5]:  
+            if tariff:
+                tariff_display = {
+                    'basic': 'БАЗОВЫЙ',
+                    'pro': 'ПРО',
+                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
+                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
+                popular_text += f"  • {tariff_display}: {count} чеков\n"
+        
+        stats_text = f"""📊 **Статистика бота**
+
+👥 **Пользователи:**
+  • Всего зарегистрировано: {stats['total_users']}
+  • С активным доступом: {stats['active_users']}
+  • Новых за месяц: {stats['new_users_30d']}
+  • Активных за неделю: {stats['active_7d']}
+
+💳 **Активные тарифы:**
+{tariff_text if tariff_text else '  • Нет активных тарифов'}
+
+📄 **Чеки:**
+  • Загружено за месяц: {stats['receipts_30d']}
+
+🔥 **Популярные тарифы (месяц):**
+{popular_text if popular_text else '  • Нет данных'}
+
+📈 **Конверсия:**
+  • Активация от регистрации: {round(stats['active_users']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
+  • Активность за неделю: {round(stats['active_7d']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
+"""
+        
+        await message.answer(stats_text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logging.error(f"Ошибка получения статистики: {e}")
+        await message.answer("❌ Ошибка при получении статистики")
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
 async def handle_offer_button(message: types.Message):
