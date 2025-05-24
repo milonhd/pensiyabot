@@ -18,8 +18,10 @@ def register_reviews_handlers(dp, bot):
         await state.update_data(user_id=user_id)
         await call.message.answer(
             "✍️ Напишите ваш отзыв (максимум 500 символов):",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_review")]
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_review")]
+                ]  
             )
         )
         await state.set_state(ReviewStates.waiting_review_text)
