@@ -142,11 +142,11 @@ async def set_user_access(user_id, expire_time, tariff):
         async with conn.cursor() as cur:
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
-            VALUES (%s, %s, %s, NOW())
+            VALUES (%s, TO_TIMESTAMP(%s), %s, NOW())
             ON CONFLICT (user_id) DO UPDATE 
             SET 
                 expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
@@ -196,7 +196,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE expire_time <= NOW() AND expire_time > NOW() - INTERVAL '1 hour'
+                WHERE expire_time <= NOW() 
+                AND expire_time > NOW() - INTERVAL '1 hour'
             """)
             return await cur.fetchall()
 
