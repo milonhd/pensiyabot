@@ -336,6 +336,7 @@ async def cmd_start(message: types.Message):
     main_kb = ReplyKeyboardBuilder()
     main_kb.button(text="📄 Публичная оферта")
     main_kb.button(text="📞 Поддержка")
+    main_kb.button(text="👤 Мой профиль")
     
     if message.from_user.id == ADMIN_ID:
         main_kb.button(text="📢 Рассылка")
@@ -548,15 +549,6 @@ async def show_stats(message: types.Message):
         logging.error(f"Ошибка получения статистики: {e}")
         await message.answer("❌ Ошибка при получении статистики")
 
-@dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
-async def handle_offer_button(message: types.Message):
-    pdf_path = "oferta.pdf"
-    try:
-        document = FSInputFile(pdf_path)
-        await message.answer_document(document)
-    except Exception as e:
-        await message.answer("⚠️ Ошибка при отправке файла: " + str(e))
-
 @dp.callback_query(lambda c: c.data.startswith("year_"))
 async def handle_year_selection(call: types.CallbackQuery):
     year = call.data.split("_")[1]
@@ -703,15 +695,15 @@ async def handle_callback(call: types.CallbackQuery):
             invite = await bot.create_chat_invite_link(
                 chat_id=chat_id,
                 member_limit=1,
-                expire_date=int(time.time()) + 15,
+                expire_date=int(time.time()) + 20,
                 creates_join_request=False
             )
   
             msg = await call.message.answer(
-                f"🔐 Ваша персональная ссылка (исчезнет спустя 15 секунд):\n{invite.invite_link}"
+                f"🔐 Ваша персональная ссылка (исчезнет спустя 20 секунд):\n{invite.invite_link}"
             )
             
-            await asyncio.sleep(15)
+            await asyncio.sleep(20)
             try:
                 await msg.delete()
             except Exception as e:
@@ -780,7 +772,7 @@ async def handle_document(message: types.Message):
         return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
 
     await message.answer(
-        f"Данные чека:\n"
+        f"📄 Данные чека:\n"
         f"ИИН: {receipt_data['iin']}\n"
         f"Сумма: {receipt_data['amount']}\n"
         f"Номер чека: {receipt_data['check_number']}\n"
@@ -952,6 +944,41 @@ async def check_subscriptions():
                 )
         await asyncio.sleep(3600) 
 
+@dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
+async def handle_profile(message: types.Message):
+    await save_user(message.from_user) 
+    
+    expire_time, tariff = await get_user_access(message.from_user.id)
+    user = message.from_user
+    
+    profile_text = (
+        f"👤 <b>Ваш профиль</b>\n\n"
+        f"🆔 ID: {user.id}\n"
+        f"👤 Имя: {user.full_name}\n"
+        f"📅 Дата егистрации: {datetime.now().strftime('%d.%m.%Y')}\n\n"
+    )
+    
+    if expire_time and expire_time > datetime.now():
+        expire_date = expire_time.strftime("%d.%m.%Y %H:%M")
+        profile_text += (
+            f"✅ <b>Подписка активна</b>\n"
+            f"📌 Уровень: {tariff.upper() if tariff else 'Не указан'}\n"
+            f"📆 Истекает: {expire_date}"
+        )
+    else:
+        profile_text += "❌ <b>Подписка неактивна</b>\n\n👉 Выберите уровень командой /start"
+    
+    await message.answer(profile_text, parse_mode="HTML")
+
+@dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
+async def handle_offer_button(message: types.Message):
+    pdf_path = "oferta.pdf"
+    try:
+        document = FSInputFile(pdf_path)
+        await message.answer_document(document)
+    except Exception as e:
+        await message.answer("⚠️ Ошибка при отправке файла: " + str(e))
+
 @dp.message(F.text == "📞 Поддержка", F.chat.type == ChatType.PRIVATE)
 async def handle_support_button(message: types.Message):
     support_msg = """
@@ -1039,6 +1066,7 @@ async def show_main_menu(message: types.Message, text: str = None):
     main_kb = ReplyKeyboardBuilder()
     main_kb.button(text="📄 Публичная оферта")
     main_kb.button(text="📞 Поддержка")
+    main_kb.button(text="👤 Мой профиль")
     
     if message.from_user.id == ADMIN_ID:
         main_kb.button(text="📢 Рассылка")
