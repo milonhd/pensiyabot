@@ -85,3 +85,8 @@ def register_reviews_handlers(dp, bot):
         )
         
         await call.message.delete()
+
+@dp.callback_query(F.data == "cancel_review")
+async def cancel_review(call: types.CallbackQuery, state: FSMContext):
+    await call.message.answer("❌ Отзыв отменен")
+    await state.clear()
