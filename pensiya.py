@@ -90,11 +90,7 @@ async def init_db():
                 first_name VARCHAR(255),
                 last_name VARCHAR(255),
                 joined_at TIMESTAMP DEFAULT NOW()
-            """)
-            
-            await cur.execute("""
-            ALTER TABLE user_access 
-            ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT NOW(),
+            )
             """)
             
             await cur.execute("""
