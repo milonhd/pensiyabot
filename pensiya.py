@@ -434,15 +434,21 @@ async def handle_callback(call: types.CallbackQuery):
     elif data == "get_materials":
         await call.answer()
         await call.message.edit_reply_markup(
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
                         text="✅ Материалы получены", 
                         callback_data="used_link"
-                    )]
+                    ),
+                    InlineKeyboardButton(
+                        text="📝 Оставить отзыв", 
+                        callback_data="start_review"
+                    )
                 ]
-            )
+            ]
         )
+    )
         expire_time, tariff = await get_user_access(user_id)
         if not expire_time or expire_time < datetime.now():
             return await call.message.answer("❌ У вас нет активного доступа.")
@@ -483,6 +489,11 @@ async def handle_callback(call: types.CallbackQuery):
         except Exception as e:
             logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
             await call.message.answer("⚠️ Ошибка при создании ссылки.")
+
+@dp.callback_query(F.data == "start_review")
+async def handle_start_review(call: types.CallbackQuery):
+    from reviews import start_review
+    await start_review(call)
 
 @dp.callback_query(F.data == "used_link")
 async def handle_used_link(call: types.CallbackQuery):
