@@ -50,27 +50,50 @@ class BroadcastStates(StatesGroup):
     waiting_confirm = State()
     waiting_time = State()
 
-async def create_pool():
-    return await aiopg.create_pool(DATABASE_URL)
+db_pool = None
+
+class BroadcastStates(StatesGroup):
+    waiting_content = State()
+    waiting_confirm = State()
+    waiting_time = State()
+
+async def create_db_pool():
+    global db_pool
+    try:
+        db_pool = await aiopg.create_pool(DATABASE_URL, minsize=5, maxsize=20)
+        logger.info("Пул подключений к БД создан успешно")
+    except Exception as e:
+        logger.error(f"Ошибка создания пула БД: {e}")
+        raise
+
+async def close_db_pool():
+    global db_pool
+    if db_pool:
+        db_pool.close()
+        await db_pool.wait_closed()
+        logger.info("Пул подключений к БД закрыт")
+
+async def get_db_connection():
+    if not db_pool:
+        raise Exception("Пул БД не инициализирован")
+    return db_pool.acquire()
 
 async def init_db():
-    pool = await create_pool()
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS user_access (
                 user_id BIGINT PRIMARY KEY,
                 expire_time TIMESTAMP,
-                tariff VARCHAR(20)
+                tariff VARCHAR(20),
+                username VARCHAR(255),
+                first_name VARCHAR(255),
+                last_name VARCHAR(255),
+                joined_at TIMESTAMP DEFAULT NOW(),
+                last_activity TIMESTAMP DEFAULT NOW()
             )
             """)
-            await cur.execute("""
-                ALTER TABLE user_access 
-                ADD COLUMN IF NOT EXISTS username VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS first_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()
-            """)
+            
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS fiscal_checks (
                 id SERIAL PRIMARY KEY,
@@ -84,34 +107,14 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
             """)
-    pool.close()
-    await pool.wait_closed()
-
-async def parse_kaspi_receipt(pdf_path: str):
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            text = "\n".join(page.extract_text() for page in pdf.pages)
             
-            data = {
-                "amount": float(re.search(r"(\d+)\s*₸", text).group(1)) if re.search(r"(\d+)\s*₸", text) else None,
-                "iin": re.search(r"ИИН/БИН продавца\s*(\d+)", text).group(1) if re.search(r"ИИН/БИН продавца\s*(\d+)", text) else None,
-                "check_number": re.search(r"№ чека\s*(\S+)", text).group(1) if re.search(r"№ чека\s*(\S+)", text) else None,
-                "fp": re.search(r"ФП\s*(\d+)", text).group(1) if re.search(r"ФП\s*(\d+)", text) else None,
-                "date_time": re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
-, text).group(1) if re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
-, text) else None,
-                "buyer_name": re.search(r"ФИО покупателя\s*(.+)", text).group(1).strip() if re.search(r"ФИО покупателя\s*(.+)", text) else None
-            }
-            return data
-    except Exception as e:
-        logging.error(f"Ошибка парсинга PDF: {e}")
-        return None
+            await cur.execute("CREATE INDEX IF NOT EXISTS idx_user_access_expire ON user_access(expire_time)")
+            await cur.execute("CREATE INDEX IF NOT EXISTS idx_fiscal_checks_user_id ON fiscal_checks(user_id)")
+            await cur.execute("CREATE INDEX IF NOT EXISTS idx_fiscal_checks_created_at ON fiscal_checks(created_at)")
 
 async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name, file_id):
-    pool = None
     try:
-        pool = await create_pool()
-        async with pool.acquire() as conn:
+        async with await get_db_connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
                     INSERT INTO fiscal_checks 
@@ -122,25 +125,19 @@ async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name,
     except Exception as e:
         logging.error(f"Ошибка при сохранении чека: {e}")
         return False
-    finally:
-        if pool:
-            pool.close()
-            await pool.wait_closed()
 
 async def check_duplicate_file(file_id):
-    pool = await create_pool()
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT 1 FROM fiscal_checks WHERE file_id = %s", (file_id,))
             return await cur.fetchone() is not None
 
 async def set_user_access(user_id, expire_time, tariff):
-    pool = await create_pool()
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-            INSERT INTO user_access (user_id, expire_time, tariff)
-            VALUES (%s, %s, %s)
+            INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
+            VALUES (%s, %s, %s, NOW())
             ON CONFLICT (user_id) DO UPDATE 
             SET 
                 expire_time = CASE 
@@ -148,89 +145,143 @@ async def set_user_access(user_id, expire_time, tariff):
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
-                    WHEN user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
+                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < NOW() THEN EXCLUDED.tariff 
                     ELSE user_access.tariff 
-                END
+                END,
+                last_activity = NOW()
             """, (user_id, expire_time, tariff))
-    pool.close()
-    await pool.wait_closed()
 
 async def get_user_access(user_id):
-    pool = await create_pool()
-    result = None, None
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT expire_time, tariff FROM user_access WHERE user_id = %s", (user_id,))
+            await cur.execute("""
+                SELECT expire_time, tariff 
+                FROM user_access 
+                WHERE user_id = %s
+            """, (user_id,))
             row = await cur.fetchone()
             if row:
-                result = row[0], row[1]
-    pool.close()
-    await pool.wait_closed()
-    return result
+                expire_timestamp = row[0].timestamp() if row[0] else None
+                return expire_timestamp, row[1]
+            return None, None
 
 async def revoke_user_access(user_id):
-    pool = await create_pool()
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
                 UPDATE user_access 
-                SET expire_time = EXTRACT(epoch FROM NOW()) - 1 
+                SET expire_time = NOW() - INTERVAL '1 second'
                 WHERE user_id = %s
             """, (user_id,))
-    pool.close()
-    await pool.wait_closed()
 
 async def get_all_active_users():
-    pool = await create_pool()
-    result = []
-    current_time = time.time()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT user_id, expire_time, tariff, username FROM user_access WHERE expire_time > %s", (current_time,))
-            result = await cur.fetchall()
-    pool.close()
-    await pool.wait_closed()
-    return result
-
-async def get_expired_users():
-    pool = await create_pool()
-    result = []
-    current_time = time.time()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT user_id, tariff FROM user_access WHERE expire_time <= %s", (current_time,))
-            result = await cur.fetchall()
-    pool.close()
-    await pool.wait_closed()
-    return result
-
-async def save_user(user: types.User):
-    pool = await create_pool()
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-                INSERT INTO user_access (user_id, username, first_name, last_name)
-                VALUES (%s, %s, %s, %s)
+                SELECT user_id, expire_time, tariff, username 
+                FROM user_access 
+                WHERE expire_time > NOW()
+            """)
+            rows = await cur.fetchall()
+            return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
+
+async def get_expired_users():
+    async with await get_db_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT user_id, tariff 
+                FROM user_access 
+                WHERE expire_time <= NOW() AND expire_time > NOW() - INTERVAL '1 hour'
+            """)
+            return await cur.fetchall()
+
+async def save_user(user: types.User):
+    async with await get_db_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                INSERT INTO user_access (user_id, username, first_name, last_name, last_activity)
+                VALUES (%s, %s, %s, %s, NOW())
                 ON CONFLICT (user_id) DO UPDATE 
                 SET 
                     username = EXCLUDED.username,
                     first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name
+                    last_name = EXCLUDED.last_name,
+                    last_activity = NOW()
             """, (user.id, user.username, user.first_name, user.last_name))
-    pool.close()
-    await pool.wait_closed()
 
 async def get_all_users():
-    pool = await create_pool()
-    users = []
-    async with pool.acquire() as conn:
+    async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT user_id FROM user_access")
             rows = await cur.fetchall()
-            users = [row[0] for row in rows]
-    pool.close()
-    await pool.wait_closed()
-    return users
+            return [row[0] for row in rows]
+
+async def update_user_activity(user_id):
+    async with await get_db_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                UPDATE user_access 
+                SET last_activity = NOW() 
+                WHERE user_id = %s
+            """, (user_id,))
+
+async def get_stats():
+    async with await get_db_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM user_access")
+            total_users = (await cur.fetchone())[0]
+            
+            await cur.execute("SELECT COUNT(*) FROM user_access WHERE expire_time > NOW()")
+            active_users = (await cur.fetchone())[0]
+           
+            await cur.execute("""
+                SELECT tariff, COUNT(*) 
+                FROM user_access 
+                WHERE expire_time > NOW() 
+                GROUP BY tariff
+            """)
+            tariff_stats = await cur.fetchall()
+            
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM fiscal_checks 
+                WHERE created_at > NOW() - INTERVAL '30 days'
+            """)
+            receipts_30d = (await cur.fetchone())[0]
+          
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM user_access 
+                WHERE last_activity > NOW() - INTERVAL '7 days'
+            """)
+            active_7d = (await cur.fetchone())[0]
+            
+            await cur.execute("""
+                SELECT COUNT(*) 
+                FROM user_access 
+                WHERE joined_at > NOW() - INTERVAL '30 days'
+            """)
+            new_users_30d = (await cur.fetchone())[0]
+          
+            await cur.execute("""
+                SELECT tariff, COUNT(*) as cnt
+                FROM fiscal_checks fc
+                JOIN user_access ua ON fc.user_id = ua.user_id
+                WHERE fc.created_at > NOW() - INTERVAL '30 days'
+                GROUP BY tariff
+                ORDER BY cnt DESC
+            """)
+            popular_tariffs = await cur.fetchall()
+            
+            return {
+                'total_users': total_users,
+                'active_users': active_users,
+                'tariff_stats': tariff_stats,
+                'receipts_30d': receipts_30d,
+                'active_7d': active_7d,
+                'new_users_30d': new_users_30d,
+                'popular_tariffs': popular_tariffs
+            }
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
@@ -306,7 +357,7 @@ async def cmd_start(message: types.Message):
 @dp.message(Command("g"), F.chat.type == ChatType.PRIVATE)
 async def grant_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("Нет доступа.")
+        return await message.answer("❌ Нет доступа.")
     args = message.text.split()
     if len(args) < 3:
         return await message.answer("Использование: /g [id] [basic/pro/2025-2031]")
@@ -339,7 +390,7 @@ async def grant_access(message: types.Message):
 @dp.message(Command("revoke"), F.chat.type == ChatType.PRIVATE)
 async def revoke_access(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("Нет доступа.")
+        return await message.answer("❌ Нет доступа.")
 
     args = message.text.split()
     if len(args) < 2:
@@ -372,7 +423,7 @@ async def revoke_access(message: types.Message):
 @dp.message(Command("status"), F.chat.type == ChatType.PRIVATE)
 async def check_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("Нет доступа.")
+        return await message.answer("❌ Нет доступа.")
 
     args = message.text.split()
     if len(args) < 2:
@@ -407,11 +458,12 @@ async def check_status(message: types.Message):
 @dp.message(Command("help"), F.chat.type == ChatType.PRIVATE)
 async def help_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("Нет доступа.")
+        return await message.answer("❌ Нет доступа.")
     await message.answer("""
 /g [id] [basic/pro/2025-2031] - выдать доступ
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
+/stats - статистика бота
 /users - показать всех с доступом
 /help - команды
     """)
@@ -419,7 +471,7 @@ async def help_admin(message: types.Message):
 @dp.message(Command("users"), F.chat.type == ChatType.PRIVATE)
 async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("Нет доступа.")
+        return await message.answer("❌ Нет доступа.")
     
     active_users = await get_all_active_users()
     if not active_users:
@@ -431,6 +483,62 @@ async def show_users(message: types.Message):
         expire_date = datetime.fromtimestamp(exp).strftime('%H:%M %d.%m.%Y')
         lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
     await message.answer("\n".join(lines))
+
+@dp.message(Command("stats"), F.chat.type == ChatType.PRIVATE)
+async def show_stats(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return await message.answer("❌ Нет доступа.")
+    
+    try:
+        stats = await get_stats()
+     
+        tariff_text = ""
+        for tariff, count in stats['tariff_stats']:
+            if tariff:
+                tariff_display = {
+                    'basic': 'БАЗОВЫЙ',
+                    'pro': 'ПРО', 
+                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
+                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
+                tariff_text += f"  • {tariff_display}: {count}\n"
+      
+        popular_text = ""
+        for tariff, count in stats['popular_tariffs'][:5]:  
+            if tariff:
+                tariff_display = {
+                    'basic': 'БАЗОВЫЙ',
+                    'pro': 'ПРО',
+                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
+                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
+                popular_text += f"  • {tariff_display}: {count} чеков\n"
+        
+        stats_text = f"""📊 **Статистика бота**
+
+👥 **Пользователи:**
+  • Всего зарегистрировано: {stats['total_users']}
+  • С активным доступом: {stats['active_users']}
+  • Новых за месяц: {stats['new_users_30d']}
+  • Активных за неделю: {stats['active_7d']}
+
+💳 **Активные тарифы:**
+{tariff_text if tariff_text else '  • Нет активных тарифов'}
+
+📄 **Чеки:**
+  • Загружено за месяц: {stats['receipts_30d']}
+
+🔥 **Популярные тарифы (месяц):**
+{popular_text if popular_text else '  • Нет данных'}
+
+📈 **Конверсия:**
+  • Активация от регистрации: {round(stats['active_users']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
+  • Активность за неделю: {round(stats['active_7d']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
+"""
+        
+        await message.answer(stats_text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logging.error(f"Ошибка получения статистики: {e}")
+        await message.answer("❌ Ошибка при получении статистики")
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
 async def handle_offer_button(message: types.Message):
@@ -620,6 +728,26 @@ async def handle_callback(call: types.CallbackQuery):
 @dp.callback_query(F.data == "used_link")
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
+
+async def parse_kaspi_receipt(pdf_path: str):
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            text = "\n".join(page.extract_text() for page in pdf.pages)
+            
+            data = {
+                "amount": float(re.search(r"(\d+)\s*₸", text).group(1)) if re.search(r"(\d+)\s*₸", text) else None,
+                "iin": re.search(r"ИИН/БИН продавца\s*(\d+)", text).group(1) if re.search(r"ИИН/БИН продавца\s*(\d+)", text) else None,
+                "check_number": re.search(r"№ чека\s*(\S+)", text).group(1) if re.search(r"№ чека\s*(\S+)", text) else None,
+                "fp": re.search(r"ФП\s*(\d+)", text).group(1) if re.search(r"ФП\s*(\d+)", text) else None,
+                "date_time": re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
+, text).group(1) if re.search(r"Дата и время\s*(?:по Астане)?\s*(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"
+, text) else None,
+                "buyer_name": re.search(r"ФИО покупателя\s*(.+)", text).group(1).strip() if re.search(r"ФИО покупателя\s*(.+)", text) else None
+            }
+            return data
+    except Exception as e:
+        logging.error(f"Ошибка парсинга PDF: {e}")
+        return None
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
 async def handle_document(message: types.Message):
@@ -1030,16 +1158,19 @@ async def delete_bot_commands():
     await bot.delete_my_commands()
     
 async def on_startup():
+    await create_db_pool()
     await init_db()
     await delete_bot_commands()
     scheduler.start()
 
 async def main():
+    await create_db_pool()
     await init_db()
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
     scheduler.shutdown()
+    await close_db_pool()
     await bot.session.close()
 
 if __name__ == '__main__':
@@ -1048,4 +1179,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(dp.start_polling(bot))
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped")
+        logger.info("Бот остановлен.")
