@@ -236,68 +236,7 @@ async def update_user_activity(user_id):
                 WHERE user_id = %s
             """, (user_id,))
 
-async def get_stats():
-    async with await get_db_connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT COUNT(*) FROM user_access")
-            total_users = (await cur.fetchone())[0]
-            
-            # Fixed: Using direct timestamp comparison instead of EXTRACT
-            await cur.execute("""
-                SELECT COUNT(*) FROM user_access 
-                WHERE expire_time > NOW()
-            """)
-            active_users = (await cur.fetchone())[0]
-           
-            await cur.execute("""
-                SELECT tariff, COUNT(*) 
-                FROM user_access 
-                WHERE expire_time > NOW()
-                GROUP BY tariff
-            """)
-            tariff_stats = await cur.fetchall()
-            
-            await cur.execute("""
-                SELECT COUNT(*) 
-                FROM fiscal_checks 
-                WHERE created_at > NOW() - INTERVAL '30 days'
-            """)
-            receipts_30d = (await cur.fetchone())[0]
-          
-            await cur.execute("""
-                SELECT COUNT(*) 
-                FROM user_access 
-                WHERE last_activity > NOW() - INTERVAL '7 days'
-            """)
-            active_7d = (await cur.fetchone())[0]
-            
-            await cur.execute("""
-                SELECT COUNT(*) 
-                FROM user_access 
-                WHERE joined_at > NOW() - INTERVAL '30 days'
-            """)
-            new_users_30d = (await cur.fetchone())[0]
-          
-            await cur.execute("""
-                SELECT tariff, COUNT(*) as cnt
-                FROM fiscal_checks fc
-                JOIN user_access ua ON fc.user_id = ua.user_id
-                WHERE fc.created_at > NOW() - INTERVAL '30 days'
-                GROUP BY tariff
-                ORDER BY cnt DESC
-            """)
-            popular_tariffs = await cur.fetchall()
-            
-            return {
-                'total_users': total_users,
-                'active_users': active_users,
-                'tariff_stats': tariff_stats,
-                'receipts_30d': receipts_30d,
-                'active_7d': active_7d,
-                'new_users_30d': new_users_30d,
-                'popular_tariffs': popular_tariffs
-            }
-            
+
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
@@ -478,7 +417,6 @@ async def help_admin(message: types.Message):
 /g [id] [basic/pro/2025-2031] - выдать доступ
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
-/stats - статистика бота
 /users - показать всех с доступом
 /help - команды
     """)
@@ -499,61 +437,6 @@ async def show_users(message: types.Message):
         lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
     await message.answer("\n".join(lines))
 
-@dp.message(Command("stats"), F.chat.type == ChatType.PRIVATE)
-async def show_stats(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return await message.answer("❌ Нет доступа.")
-    
-    try:
-        stats = await get_stats()
-     
-        tariff_text = ""
-        for tariff, count in stats['tariff_stats']:
-            if tariff:
-                tariff_display = {
-                    'basic': 'БАЗОВЫЙ',
-                    'pro': 'ПРО', 
-                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
-                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
-                tariff_text += f"  • {tariff_display}: {count}\n"
-      
-        popular_text = ""
-        for tariff, count in stats['popular_tariffs'][:5]:  
-            if tariff:
-                tariff_display = {
-                    'basic': 'БАЗОВЫЙ',
-                    'pro': 'ПРО',
-                    'self': 'САМОСТОЯТЕЛЬНЫЙ'
-                }.get(tariff, f'Год {tariff}' if tariff.isdigit() else tariff.upper())
-                popular_text += f"  • {tariff_display}: {count} чеков\n"
-        
-        stats_text = f"""📊 **Статистика бота**
-
-👥 **Пользователи:**
-  • Всего зарегистрировано: {stats['total_users']}
-  • С активным доступом: {stats['active_users']}
-  • Новых за месяц: {stats['new_users_30d']}
-  • Активных за неделю: {stats['active_7d']}
-
-💳 **Активные тарифы:**
-{tariff_text if tariff_text else '  • Нет активных тарифов'}
-
-📄 **Чеки:**
-  • Загружено за месяц: {stats['receipts_30d']}
-
-🔥 **Популярные тарифы (месяц):**
-{popular_text if popular_text else '  • Нет данных'}
-
-📈 **Конверсия:**
-  • Активация от регистрации: {round(stats['active_users']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
-  • Активность за неделю: {round(stats['active_7d']/stats['total_users']*100 if stats['total_users'] > 0 else 0, 1)}%
-"""
-        
-        await message.answer(stats_text, parse_mode="Markdown")
-        
-    except Exception as e:
-        logging.error(f"Ошибка получения статистики: {e}")
-        await message.answer("❌ Ошибка при получении статистики")
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
 async def handle_offer_button(message: types.Message):
