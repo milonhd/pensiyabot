@@ -42,7 +42,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-register_review_handlers(dp, bot, REVIEWS_CHANNEL_ID)
+register_reviews_handlers(dp, bot, REVIEWS_CHANNEL_ID=-1002513508156)
 
 class BroadcastStates(StatesGroup):
     waiting_content = State()
