@@ -170,15 +170,17 @@ async def save_user(user: types.User):
         async with await get_db_connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
-                INSERT INTO user_access (user_id, username, first_name, last_name, last_activity)
-                VALUES (%s, %s, %s, %s, NOW())
-                ON CONFLICT (user_id) DO UPDATE 
-                SET 
-                    username = EXCLUDED.username,
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    last_activity = NOW()
-            """, (user.id, user.username, user.first_name, user.last_name))
+                    INSERT INTO user_access (user_id, username, first_name, last_name, last_activity)
+                    VALUES (%s, %s, %s, %s, NOW())
+                    ON CONFLICT (user_id) DO UPDATE 
+                    SET 
+                        username = EXCLUDED.username,
+                        first_name = EXCLUDED.first_name,
+                        last_name = EXCLUDED.last_name,
+                        last_activity = NOW()
+                """, (user.id, user.username, user.first_name, user.last_name))
+    except Exception as e:
+        logging.error(f"Ошибка при сохранении пользователя: {e}")
 
 async def get_all_users():
     async with await get_db_connection() as conn:
