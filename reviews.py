@@ -3,6 +3,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from database import get_db_connection
 from datetime import datetime
+from pensiya import dp
 
 class ReviewStates(StatesGroup):
     waiting_review_text = State()
