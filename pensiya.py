@@ -146,8 +146,8 @@ async def check_duplicate_file(file_id):
 async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
     try:
         expire_time = datetime.now() + timedelta(days=duration_days)
-        
-        async with await get_db_connection() as conn:
+   
+        async with db_pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
                     INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
