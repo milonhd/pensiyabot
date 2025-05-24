@@ -608,7 +608,7 @@ async def handle_screenshot(call: types.CallbackQuery):
     )
 
 async def set_user_access(user_id, expire_time, tariff):
-    pool = await create_pool()
+    pool = await create_db_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
