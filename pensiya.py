@@ -335,7 +335,7 @@ async def cmd_start(message: types.Message):
         await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
     else:
         expire_time, _ = await get_user_access(message.from_user.id)
-        if expire_time and expire_time > time.time():
+        if expire_time and expire_time > datetime.now():
             await message.answer(f"👋 Добро пожаловать, {name}! У вас уже есть доступ.", reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
         else:
             welcome_text = (
@@ -686,7 +686,7 @@ async def handle_callback(call: types.CallbackQuery):
             )
         )
         expire_time, tariff = await get_user_access(user_id)
-        if not expire_time or expire_time < time.time():
+        if not expire_time or expire_time < datetime.now():
             return await call.message.answer("❌ У вас нет активного доступа.")
 
         tariff_chat_map = {
