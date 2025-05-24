@@ -478,24 +478,8 @@ async def help_admin(message: types.Message):
 /revoke [id] - отозвать доступ
 /status [id] - статус доступа
 /stats - статистика бота
-/users - показать всех с доступом
 /help - команды
     """)
-
-@dp.message(Command("users"), F.chat.type == ChatType.PRIVATE)
-async def show_users(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return await message.answer("❌ Нет доступа.")
-    
-    active_users = await get_all_active_users()
-    if not active_users:
-        return await message.answer("Пока нет пользователей с доступом.")
-    
-    lines = []
-    for uid, exp, tariff, username in active_users:
-        expire_date = exp.strftime('%H:%M %d.%m.%Y')  
-        lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
-    await message.answer("\n".join(lines))
 
 @dp.message(Command("stats"), F.chat.type == ChatType.PRIVATE)
 async def show_stats(message: types.Message):
