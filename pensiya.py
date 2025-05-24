@@ -310,6 +310,14 @@ def get_self_years_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
+@dp.callback_query(F.data == "menu")
+async def handle_back_to_menu(call: types.CallbackQuery):
+    await call.message.edit_text(
+        "👇 Выберите желаемый уровень:",
+        reply_markup=main_keyboard
+    )
+    await call.answer()
+
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Оплатить", url="https://pay.kaspi.kz/pay/vx2s6z0c")],
