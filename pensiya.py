@@ -18,7 +18,21 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from database import DATABASE_URL, create_db_pool, close_db_pool, init_db, get_db_connection
+from database import (
+    DATABASE_URL, 
+    create_db_pool, 
+    close_db_pool, 
+    init_db, 
+    get_db_connection,
+    save_user,
+    get_user_access,
+    set_user_access,
+    revoke_user_access,
+    get_expired_users,
+    get_stats,
+    check_duplicate_file,
+    save_receipt
+)
 from reviews import register_reviews_handlers
 
 load_dotenv()
