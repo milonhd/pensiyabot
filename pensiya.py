@@ -15,6 +15,7 @@ from aiogram.filters import Command
 from aiogram.enums import ChatType
 from aiogram.types import FSInputFile
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -241,10 +242,13 @@ materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
 ])
 
-def get_self_years_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"Пенсия {year}", callback_data=f"year_{year}")] for year in range(2025, 2032)
-    ])
+def get_years_keyboard():
+    builder = InlineKeyboardBuilder()
+    for year in range(2025, 2032):
+        builder.button(text=f"Пенсия {year}", callback_data=f"year_{year}")
+    builder.button(text="◀️ Назад", callback_data="menu")
+    builder.adjust(2)
+    return builder.as_markup()
 
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
