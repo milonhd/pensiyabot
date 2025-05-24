@@ -932,8 +932,8 @@ async def approve_user(call: types.CallbackQuery):
     else:
         return await call.answer("❌ Неизвестный тариф.")
 
-    expire_time = time.time() + duration
-    await set_user_access(user_id, expire_time, tariff)
+    expire_time = datetime.now() + timedelta(seconds=duration)
+    await set_user_access(user.id, expire_time, tariff)
 
     with open("access_log.txt", "a", encoding="utf-8") as f:
         f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
