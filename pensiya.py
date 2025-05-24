@@ -955,7 +955,7 @@ async def handle_profile(message: types.Message):
         f"👤 <b>Ваш профиль</b>\n\n"
         f"🆔 ID: {user.id}\n"
         f"👤 Имя: {user.full_name}\n"
-        f"📅 Дата егистрации: {datetime.now().strftime('%d.%m.%Y')}\n\n"
+        f"📅 Дата регистрации: {datetime.now().strftime('%d.%m.%Y')}\n\n"
     )
     
     if expire_time and expire_time > datetime.now():
