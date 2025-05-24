@@ -89,9 +89,7 @@ async def init_db():
                 username VARCHAR(255),
                 first_name VARCHAR(255),
                 last_name VARCHAR(255),
-                joined_at TIMESTAMP DEFAULT NOW(),
-                last_activity TIMESTAMP DEFAULT NOW()
-            )
+                joined_at TIMESTAMP DEFAULT NOW()
             """)
             
             await cur.execute("""
