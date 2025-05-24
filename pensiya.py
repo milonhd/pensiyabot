@@ -84,7 +84,7 @@ async def init_db():
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS user_access (
                 user_id BIGINT PRIMARY KEY,
-                expire_time BIGINT,
+                expire_time TIMESTAMP,
                 tariff VARCHAR(20),
                 username VARCHAR(255),
                 first_name VARCHAR(255),
@@ -140,13 +140,18 @@ async def check_duplicate_file(file_id):
 async def set_user_access(user_id, expire_time, tariff):
     async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
+            if expire_time is not None:
+                expire_timestamp = datetime.fromtimestamp(expire_time)
+            else:
+                expire_timestamp = None
+                
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
-            VALUES (%s, TO_TIMESTAMP(%s), %s, NOW())
+            VALUES (%s, %s, %s, NOW())
             ON CONFLICT (user_id) DO UPDATE 
             SET 
                 expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
@@ -154,7 +159,7 @@ async def set_user_access(user_id, expire_time, tariff):
                     ELSE user_access.tariff 
                 END,
                 last_activity = NOW()
-            """, (user_id, expire_time, tariff))
+            """, (user_id, expire_timestamp, tariff))
 
 async def get_user_access(user_id):
     async with await get_db_connection() as conn:
@@ -185,7 +190,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time > NOW()
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -196,8 +201,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) <= EXTRACT(epoch FROM NOW())
-                AND EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW()) - 3600
+                WHERE expire_time <= NOW()
+                AND expire_time > NOW() - INTERVAL '1 hour'
             """)
             return await cur.fetchall()
 
@@ -237,17 +242,17 @@ async def get_stats():
             await cur.execute("SELECT COUNT(*) FROM user_access")
             total_users = (await cur.fetchone())[0]
             
-            # Исправлено: используем EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+            # Fixed: Using direct timestamp comparison instead of EXTRACT
             await cur.execute("""
                 SELECT COUNT(*) FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time > NOW()
             """)
             active_users = (await cur.fetchone())[0]
            
             await cur.execute("""
                 SELECT tariff, COUNT(*) 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time > NOW()
                 GROUP BY tariff
             """)
             tariff_stats = await cur.fetchall()
@@ -292,7 +297,7 @@ async def get_stats():
                 'new_users_30d': new_users_30d,
                 'popular_tariffs': popular_tariffs
             }
-
+            
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
     [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
