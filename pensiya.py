@@ -185,7 +185,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time > NOW()
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -196,8 +196,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) <= EXTRACT(epoch FROM NOW())
-                AND EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW()) - 3600
+                WHERE expire_time <= NOW()
+                AND expire_time > NOW() - INTERVAL '1 hour'
             """)
             return await cur.fetchall()
 
@@ -236,11 +236,10 @@ async def get_stats():
         async with conn.cursor() as cur:
             await cur.execute("SELECT COUNT(*) FROM user_access")
             total_users = (await cur.fetchone())[0]
-            
-            # Исправлено: используем EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+          
             await cur.execute("""
                 SELECT COUNT(*) FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time > NOW()
             """)
             active_users = (await cur.fetchone())[0]
            
