@@ -102,7 +102,7 @@ async def init_db():
             await cur.execute("""
             ALTER TABLE user_access 
             ALTER COLUMN expire_time TYPE TIMESTAMP 
-            USING TO_TIMESTAMP(expire_time)
+            USING TO_TIMESTAMP(expire_time::BIGINT)
             """)
             
             await cur.execute("""
@@ -146,21 +146,19 @@ async def check_duplicate_file(file_id):
 async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
     try:
         expire_time = datetime.now() + timedelta(days=duration_days)
-   
         async with db_pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
-                    INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
-                    VALUES (%s, %s, %s, NOW())
+                    INSERT INTO user_access (user_id, expire_time, tariff)
+                    VALUES (%s, %s, %s)
                     ON CONFLICT (user_id) DO UPDATE 
                     SET 
                         expire_time = EXCLUDED.expire_time,
-                        tariff = EXCLUDED.tariff,
-                        last_activity = NOW()
+                        tariff = EXCLUDED.tariff
                 """, (user_id, expire_time, tariff))
         return True
     except Exception as e:
-        logging.error(f"Ошибка выдачи доступа: {e}")
+        logging.error(f"Ошибка: {e}")
         return False
 
 async def get_user_access(user_id):
