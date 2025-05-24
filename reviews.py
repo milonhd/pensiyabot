@@ -19,7 +19,6 @@ async def start_review(call: types.CallbackQuery, state: FSMContext):
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_review")]
-        )
     )
     await state.set_state(ReviewStates.waiting_review_text)
 
