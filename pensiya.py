@@ -58,8 +58,8 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
-    [InlineKeyboardButton(text="📝 Оставить отзыв", callback_data=f"start_review_{user.id}")]
+    [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials"),
+    [InlineKeyboardButton(text="📝 Оставить отзыв", callback_data=f"start_review_{user_id}")]
 ])
 
 def get_self_years_keyboard():
