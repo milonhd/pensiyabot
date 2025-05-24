@@ -139,8 +139,6 @@ async def check_duplicate_file(file_id):
 
 async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
     global db_pool 
-    if not db_pool:  
-        await create_db_pool()
     
     expire_time = datetime.now() + timedelta(days=duration_days)
     try:
