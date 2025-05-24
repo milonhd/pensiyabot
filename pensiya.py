@@ -393,7 +393,9 @@ async def grant_access(message: types.Message):
         if success:
             expire_date = (datetime.now() + timedelta(days=duration_days)).strftime("%d.%m.%Y %H:%M")
             await message.answer(f"✅ Пользователю {user_id} выдан доступ до {expire_date} ({tariff.upper()})")
-            await bot.send_message(user_id, f"🔑 Ваш доступ уровня {tariff.upper()} активен до {expire_date}!")
+            await bot.send_message(user_id, f"✅ Доступ к материалам уровня {tariff.upper()} активирован до {expire_date}!",
+            reply_markup=materials_keyboard
+        )
         else:
             await message.answer("❌ Ошибка при выдаче доступа")
 
