@@ -185,7 +185,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE expire_time > NOW()
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -196,8 +196,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE expire_time <= NOW() 
-                AND expire_time > NOW() - INTERVAL '1 hour'
+                WHERE EXTRACT(epoch FROM expire_time) <= EXTRACT(epoch FROM NOW())
+                AND EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW()) - 3600
             """)
             return await cur.fetchall()
 
@@ -237,13 +237,17 @@ async def get_stats():
             await cur.execute("SELECT COUNT(*) FROM user_access")
             total_users = (await cur.fetchone())[0]
             
-            await cur.execute("SELECT COUNT(*) FROM user_access WHERE expire_time > NOW()")
+            # Исправлено: используем EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+            await cur.execute("""
+                SELECT COUNT(*) FROM user_access 
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+            """)
             active_users = (await cur.fetchone())[0]
            
             await cur.execute("""
                 SELECT tariff, COUNT(*) 
                 FROM user_access 
-                WHERE expire_time > NOW() 
+                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
                 GROUP BY tariff
             """)
             tariff_stats = await cur.fetchall()
