@@ -607,27 +607,6 @@ async def handle_screenshot(call: types.CallbackQuery):
         "3. Отправьте чек в этот чат\n\n"
     )
 
-async def set_user_access(user_id, expire_time, tariff):
-    pool = await create_db_pool()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("""
-            INSERT INTO user_access (user_id, expire_time, tariff)
-            VALUES (%s, TO_TIMESTAMP(%s), %s)
-            ON CONFLICT (user_id) DO UPDATE 
-            SET 
-                expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
-                    ELSE user_access.expire_time 
-                END,
-                tariff = CASE 
-                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < NOW() THEN EXCLUDED.tariff 
-                    ELSE user_access.tariff 
-                END
-            """, (user_id, expire_time, tariff))
-    pool.close()
-    await pool.wait_closed()
-
 @dp.callback_query(
     F.data.in_([
         "self", "basic", "pro", "offer",
