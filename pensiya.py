@@ -302,7 +302,7 @@ materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
 ])
 
-def get_years_keyboard():
+def get_self_years_keyboard():
     builder = InlineKeyboardBuilder()
     for year in range(2025, 2032):
         builder.button(text=f"Пенсия {year}", callback_data=f"year_{year}")
