@@ -84,7 +84,7 @@ async def init_db():
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS user_access (
                 user_id BIGINT PRIMARY KEY,
-                expire_time TIMESTAMP,
+                expire_time BIGINT,
                 tariff VARCHAR(20),
                 username VARCHAR(255),
                 first_name VARCHAR(255),
