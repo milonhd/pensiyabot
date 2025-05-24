@@ -920,6 +920,10 @@ async def approve_user(call: types.CallbackQuery):
     user_id = int(call.data.split("_")[1])
     _, tariff = await get_user_access(user_id)
 
+    global db_pool  
+    if not db_pool:
+        await create_db_pool()
+
 async with db_pool.acquire() as conn:  
     async with conn.cursor() as cur:
             await cur.execute("SELECT 1 FROM fiscal_checks WHERE user_id = %s", (user_id,))
