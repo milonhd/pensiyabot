@@ -591,16 +591,25 @@ async def handle_year_selection(call: types.CallbackQuery):
 async def handle_screenshot(call: types.CallbackQuery):
     user_id = call.from_user.id
     expire_time, current_tariff = await get_user_access(user_id)
-    
-    # Проверяем есть ли активный доступ
-    if expire_time and expire_time > time.time():
+ 
+    if expire_time and expire_time > datetime.now():
         await call.answer("❗ У вас уже есть активный доступ!", show_alert=True)
         return
     
-    year = call.data.split("_")[2]
-    await set_user_access(user_id, None, year)
+    selected_tariff_or_year = call.data.split("_")[2]
+    
+    duration_map = {
+        "basic": 30,
+        "pro": 60,
+        **{str(year): 7 for year in range(2025, 2032)} 
+    }
+ 
+    duration_days = duration_map.get(selected_tariff_or_year, 7)
+    
+    await set_user_access(user_id, duration_days, selected_tariff_or_year)
+  
     await call.message.answer(
-        f"📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
+        "📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
         "📌 Как получить чек:\n"
         "1. После оплаты в Kaspi нажмите «Показать чек об оплате»\n"
         "2. Нажмите «Поделиться»\n"
