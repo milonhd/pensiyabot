@@ -246,7 +246,7 @@ async def get_stats():
             await cur.execute("""
                 SELECT tariff, COUNT(*) 
                 FROM user_access 
-                WHERE EXTRACT(epoch FROM expire_time) > EXTRACT(epoch FROM NOW())
+                WHERE expire_time <= NOW()
                 GROUP BY tariff
             """)
             tariff_stats = await cur.fetchall()
