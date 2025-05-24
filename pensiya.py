@@ -18,6 +18,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+from reviews import start_review_
 from database import (
     DATABASE_URL, 
     create_db_pool, 
@@ -492,7 +493,7 @@ async def handle_callback(call: types.CallbackQuery):
 
 @dp.callback_query(F.data == "start_review")
 async def handle_start_review(call: types.CallbackQuery):
-    from reviews import start_review
+    from reviews import start_review_
     await start_review(call)
 
 @dp.callback_query(F.data == "used_link")
