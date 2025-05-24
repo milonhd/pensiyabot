@@ -611,15 +611,15 @@ async def set_user_access(user_id, expire_time, tariff):
         async with conn.cursor() as cur:
             await cur.execute("""
             INSERT INTO user_access (user_id, expire_time, tariff)
-            VALUES (%s, %s, %s)
+            VALUES (%s, TO_TIMESTAMP(%s), %s)
             ON CONFLICT (user_id) DO UPDATE 
             SET 
                 expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
+                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
                     ELSE user_access.expire_time 
                 END,
                 tariff = CASE 
-                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < EXTRACT(epoch FROM NOW()) THEN EXCLUDED.tariff 
+                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < NOW() THEN EXCLUDED.tariff 
                     ELSE user_access.tariff 
                 END
             """, (user_id, expire_time, tariff))
