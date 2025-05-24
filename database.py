@@ -163,9 +163,13 @@ async def get_expired_users():
             return await cur.fetchall()
 
 async def save_user(user: types.User):
-    async with await get_db_connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("""
+    global db_pool
+    try:
+        if not db_pool:
+            await create_db_pool()
+        async with await get_db_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
                 INSERT INTO user_access (user_id, username, first_name, last_name, last_activity)
                 VALUES (%s, %s, %s, %s, NOW())
                 ON CONFLICT (user_id) DO UPDATE 
