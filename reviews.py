@@ -1,5 +1,5 @@
 from aiogram import types, F, Dispatcher
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State, StatesGroup, StateFilter
 from aiogram.fsm.context import FSMContext
 from database import get_db_connection
 from datetime import datetime
