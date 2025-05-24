@@ -1,15 +1,15 @@
-from aiogram import types, F
+from aiogram import types, F, Dispatcher
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from database import get_db_connection
 from datetime import datetime
-from pensiya import dp
 
 class ReviewStates(StatesGroup):
     waiting_review_text = State()
     waiting_review_media = State()
 
 REVIEWS_CHANNEL_ID = -1234567890
+dp = Dispatcher()
 
 @dp.callback_query(F.data.startswith("start_review_"))
 async def handle_review(call: types.CallbackQuery, state: FSMContext):
