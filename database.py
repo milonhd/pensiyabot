@@ -15,8 +15,6 @@ if not DATABASE_URL:
 
 db_pool = None
 
-os.makedirs(RECEIPT_DIR, exist_ok=True)
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
