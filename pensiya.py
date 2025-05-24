@@ -312,11 +312,14 @@ def get_self_years_keyboard():
 
 @dp.callback_query(F.data == "menu")
 async def handle_back_to_menu(call: types.CallbackQuery):
-    await call.message.edit_text(
-        "👇 Выберите желаемый уровень:",
-        reply_markup=main_keyboard
-    )
-    await call.answer()
+    try:
+        await call.message.edit_text(
+            "👇 Выберите желаемый уровень:",
+            reply_markup=main_keyboard
+        )
+        await call.answer()
+    except Exception as e:
+        logging.error(f"Ошибка в обработчике 'Назад': {e}")
 
 def get_year_buttons(year):
     return InlineKeyboardMarkup(inline_keyboard=[
