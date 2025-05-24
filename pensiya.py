@@ -175,7 +175,7 @@ async def revoke_user_access(user_id):
         async with conn.cursor() as cur:
             await cur.execute("""
                 UPDATE user_access 
-                SET expire_time = NOW() - INTERVAL '1 second'
+                SET expire_time = NULL
                 WHERE user_id = %s
             """, (user_id,))
 
@@ -196,8 +196,8 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE expire_time > NOW()
-                AND expire_time > NOW() - INTERVAL '1 hour'
+                WHERE expire_time IS NOT NULL
+                AND expire_time < NOW()
             """)
             return await cur.fetchall()
 
@@ -858,6 +858,8 @@ async def check_access_periodically():
             expired_users = await get_expired_users()
 
             for user_id, tariff in expired_users:
+                await revoke_user_access(user_id)
+                
                 for group_id in GROUP_IDS:
                     try:
                         await bot.ban_chat_member(group_id, user_id) 
