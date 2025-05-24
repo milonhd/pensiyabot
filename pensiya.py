@@ -924,11 +924,11 @@ async def approve_user(call: types.CallbackQuery):
     if not db_pool:
         await create_db_pool()
 
-async with db_pool.acquire() as conn:  
-    async with conn.cursor() as cur:
-            await cur.execute("SELECT 1 FROM fiscal_checks WHERE user_id = %s", (user_id,))
-            if not await cur.fetchone():
-                return await call.answer("❌ У пользователя нет подтвержденного чека")
+    async with db_pool.acquire() as conn:  
+        async with conn.cursor() as cur:
+                await cur.execute("SELECT 1 FROM fiscal_checks WHERE user_id = %s", (user_id,))
+                if not await cur.fetchone():
+                    return await call.answer("❌ У пользователя нет подтвержденного чека")
 
     if not tariff:
         return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
