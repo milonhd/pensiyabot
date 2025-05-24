@@ -98,12 +98,6 @@ async def init_db():
             ALTER TABLE user_access 
             ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT NOW()
             """)
-
-            await cur.execute("""
-            ALTER TABLE user_access 
-            ALTER COLUMN expire_time TYPE TIMESTAMP 
-            USING TO_TIMESTAMP(expire_time::BIGINT)
-            """)
             
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS fiscal_checks (
@@ -171,8 +165,7 @@ async def get_user_access(user_id):
             """, (user_id,))
             row = await cur.fetchone()
             if row:
-                expire_timestamp = row[0].timestamp() if row[0] else None
-                return expire_timestamp, row[1]
+                return row[0], row[1]
             return None, None
 
 async def revoke_user_access(user_id):
@@ -452,12 +445,10 @@ async def check_status(message: types.Message):
         user_id = int(args[1])
         expire_time, tariff = await get_user_access(user_id)
         
-        if expire_time and expire_time > time.time():
-            
-            remaining_seconds = expire_time - time.time()
-            days = int(remaining_seconds // (24 * 60 * 60))
-            
-            formatted_time = datetime.fromtimestamp(expire_time).strftime('%H:%M %d.%m.%Y')
+        if expire_time and expire_time > datetime.now():
+            remaining = expire_time - datetime.now()
+            days = remaining.days
+            formatted_time = expire_time.strftime('%H:%M %d.%m.%Y')
 
             if tariff:
                 await message.answer(
@@ -498,8 +489,7 @@ async def show_users(message: types.Message):
     
     lines = []
     for uid, exp, tariff, username in active_users:
-        username = f"@{username}" if username else "без username"
-        expire_date = datetime.fromtimestamp(exp).strftime('%H:%M %d.%m.%Y')
+        expire_date = exp.strftime('%H:%M %d.%m.%Y')  
         lines.append(f"{uid} {username} - до {expire_date} ({tariff})")
     await message.answer("\n".join(lines))
 
