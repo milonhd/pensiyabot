@@ -141,19 +141,18 @@ async def set_user_access(user_id, expire_time, tariff):
     async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-            INSERT INTO user_access (user_id, expire_time, tariff, last_activity)
-            VALUES (%s, TO_TIMESTAMP(%s), %s, NOW())
-            ON CONFLICT (user_id) DO UPDATE 
-            SET 
-                expire_time = CASE 
-                    WHEN EXCLUDED.expire_time IS NOT NULL THEN TO_TIMESTAMP(EXCLUDED.expire_time)
-                    ELSE user_access.expire_time 
-                END,
-                tariff = CASE 
-                    WHEN user_access.expire_time IS NULL OR user_access.expire_time < NOW() THEN EXCLUDED.tariff 
-                    ELSE user_access.tariff 
-                END,
-                last_activity = NOW()
+                INSERT INTO user_access (user_id, expire_time, tariff)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE 
+                SET 
+                    expire_time = CASE 
+                        WHEN EXCLUDED.expire_time IS NOT NULL THEN EXCLUDED.expire_time 
+                        ELSE user_access.expire_time 
+                    END,
+                    tariff = CASE 
+                        WHEN TO_TIMESTAMP(user_access.expire_time) < NOW() THEN EXCLUDED.tariff 
+                        ELSE user_access.tariff 
+                    END
             """, (user_id, expire_time, tariff))
 
 async def get_user_access(user_id):
@@ -185,7 +184,7 @@ async def get_all_active_users():
             await cur.execute("""
                 SELECT user_id, expire_time, tariff, username 
                 FROM user_access 
-                WHERE expire_time > NOW()
+                WHERE TO_TIMESTAMP(expire_time) > NOW()
             """)
             rows = await cur.fetchall()
             return [(row[0], row[1].timestamp(), row[2], row[3]) for row in rows]
@@ -196,7 +195,7 @@ async def get_expired_users():
             await cur.execute("""
                 SELECT user_id, tariff 
                 FROM user_access 
-                WHERE expire_time <= NOW()
+                WHERE TO_TIMESTAMP(expire_time) > NOW()
                 AND expire_time > NOW() - INTERVAL '1 hour'
             """)
             return await cur.fetchall()
@@ -239,14 +238,14 @@ async def get_stats():
           
             await cur.execute("""
                 SELECT COUNT(*) FROM user_access 
-                WHERE expire_time > NOW()
+                WHERE TO_TIMESTAMP(expire_time) > NOW()
             """)
             active_users = (await cur.fetchone())[0]
            
             await cur.execute("""
                 SELECT tariff, COUNT(*) 
                 FROM user_access 
-                WHERE expire_time <= NOW()
+                WHERE TO_TIMESTAMP(expire_time) > NOW()
                 GROUP BY tariff
             """)
             tariff_stats = await cur.fetchall()
