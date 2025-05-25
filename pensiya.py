@@ -53,9 +53,9 @@ class BroadcastStates(StatesGroup):
 
 db_pool = None
 
-def setup_reviews(pool):
+def setup_reviews(dp, bot): 
     from reviews import register_reviews_handlers
-    register_reviews_handlers(dp, bot, pool)
+    register_reviews_handlers(dp, bot)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
@@ -63,26 +63,28 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="❌ Уровень ПРО", callback_data="pro")],
 ])
 
-async def get_materials_keyboard(user_id):
-    if db_pool is None:
+async def get_materials_keyboard(user_id, bot: Bot):
+    pool = bot.get('db_pool')
+    if pool is None:
+        logging.warning("Database pool not available in get_materials_keyboard.")
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
         ])
-    
-    async with db_pool.acquire() as conn:
+
+    async with pool.acquire() as conn:
         has_reviewed = await conn.fetchval("""
-            SELECT has_reviewed 
-            FROM user_access 
+            SELECT has_reviewed
+            FROM user_access
             WHERE user_id = $1
         """, user_id)
-    
+
     buttons = [
         [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
     ]
-    
+
     if not has_reviewed:
         buttons.append([InlineKeyboardButton(text="📝 Оставить отзыв", callback_data="start_review")])
-    
+
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_self_years_keyboard():
@@ -988,19 +990,20 @@ async def delete_bot_commands():
    
     await bot.delete_my_commands()
     
-async def on_startup():
+async def on_startup(bot: Bot): 
     global db_pool
-    db_pool = await create_db_pool()
-    await init_db()
-    setup_reviews(db_pool) 
+    db_pool = await create_db_pool() 
+    await init_db(db_pool) 
+    bot['db_pool'] = db_pool 
+    setup_reviews(dp, bot) 
     await delete_bot_commands()
     scheduler.start()
 
 async def main():
     global db_pool
     db_pool = await create_db_pool()
-    await init_db()
-    setup_reviews(db_pool)  
+    await init_db(db_pool)
+    setup_reviews(dp, bot)
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
@@ -1012,7 +1015,4 @@ async def on_shutdown():
 if __name__ == '__main__':
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
-    try:
-        asyncio.run(dp.start_polling(bot))
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот остановлен.")
+    asyncio.run(dp.start_polling(bot))
