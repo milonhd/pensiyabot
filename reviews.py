@@ -24,6 +24,12 @@ def register_reviews_handlers(dp, bot):
         )
         await state.set_state(ReviewStates.waiting_review_text)
 
+    @dp.callback_query(F.data == "cancel_review")
+    async def cancel_review(call: types.CallbackQuery, state: FSMContext):
+        await state.clear()
+        await call.message.edit_text("❌ Отзыв отменён.")
+        await call.answer()
+
     @dp.message(ReviewStates.waiting_review_text)
     async def process_review_text(message: types.Message, state: FSMContext):
         data = await state.get_data()
@@ -54,17 +60,52 @@ def register_reviews_handlers(dp, bot):
         await state.clear()
 
     @dp.callback_query(F.data.startswith("approve_"))
-    async def approve_review(call: types.CallbackQuery):
-        user_id = call.data.split("_")[1]
+    async def approve_review(call: types.CallbackQuery, state: FSMContext):
+        parts = call.data.split("_")
+        user_id = int(parts[1])
+
         await bot.send_message(user_id, "🎉 Ваш отзыв был одобрен!")
-        await bot.send_message(REVIEWS_CHANNEL_ID, f"🌟 Одобренный отзыв:\n\n{call.message.text.split(':', 1)[-1].strip()}")
+    
+        text = call.message.caption or call.message.text or ""
+        media = None
+        media_type = None
+    
+        if call.message.photo:
+            media = call.message.photo[-1].file_id
+            media_type = "photo"
+        elif call.message.video:
+            media = call.message.video.file_id
+            media_type = "video"
+    
+        review_text = text.split(":", 2)[-1].strip()
+    
+        if media and media_type == "photo":
+            await bot.send_photo(
+                chat_id=REVIEWS_CHANNEL_ID,
+                photo=media,
+                caption=f"🌟 Одобренный отзыв:\n\n{review_text}"
+            )
+        elif media and media_type == "video":
+            await bot.send_video(
+                chat_id=REVIEWS_CHANNEL_ID,
+                video=media,
+                caption=f"🌟 Одобренный отзыв:\n\n{review_text}"
+            )
+        else:
+            await bot.send_message(
+                chat_id=REVIEWS_CHANNEL_ID,
+                text=f"🌟 Одобренный отзыв:\n\n{review_text}"
+            )
+    
         await call.message.edit_reply_markup(reply_markup=None)
+        await call.answer("Отзыв одобрен и опубликован.")
 
     @dp.callback_query(F.data.startswith("reject_"))
     async def reject_review(call: types.CallbackQuery):
         user_id = call.data.split("_")[1]
         await bot.send_message(user_id, "😔 Ваш отзыв был отклонён.")
-        await call.message.delete()
+        await call.message.edit_reply_markup(reply_markup=None)
+        await call.answer("Отзыв отклонён.")
 
 async def send_review_to_admin(bot, state: FSMContext):
     data = await state.get_data()
