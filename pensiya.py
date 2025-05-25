@@ -505,18 +505,6 @@ async def handle_callback(call: types.CallbackQuery):
             logging.error(f"Ошибка создания ссылки для чата {chat_id}: {e}")
             await call.message.answer("⚠️ Ошибка при создании ссылки.")
 
-@dp.callback_query(F.data == "start_review")
-async def handle_start_review(call: types.CallbackQuery, state: FSMContext):
-    fake_call = types.CallbackQuery(
-        id=call.id,
-        from_user=call.from_user,
-        message=call.message,
-        chat_instance=call.chat_instance,
-        data=f"start_review_{call.from_user.id}",
-        inline_message_id=call.inline_message_id
-    )
-    await start_review(fake_call, state)
-
 @dp.callback_query(F.data == "used_link")
 async def handle_used_link(call: types.CallbackQuery):
     await call.answer("Вы уже использовали эту ссылку", show_alert=True)
