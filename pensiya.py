@@ -53,7 +53,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-register_reviews_handlers(dp, bot, db_pool)
+register_reviews_handlers(dp, bot)
 
 class BroadcastStates(StatesGroup):
     waiting_content = State()
