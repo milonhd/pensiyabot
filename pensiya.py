@@ -997,7 +997,7 @@ async def on_startup(bot: Bot):
     global db_pool
     db_pool = await create_db_pool() 
     await init_db(db_pool)  
-    setup_reviews(dp, bot) 
+    setup_reviews(dp, bot, db_pool) 
     await delete_bot_commands()
     scheduler.start()
 
@@ -1005,7 +1005,7 @@ async def main():
     global db_pool
     db_pool = await create_db_pool()
     await init_db(db_pool)
-    setup_reviews(dp, bot)
+    setup_reviews(dp, bot, db_pool)
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
