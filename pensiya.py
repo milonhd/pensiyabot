@@ -70,15 +70,24 @@ async def get_materials_keyboard(user_id, pool, bot: Bot):
             [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
         ])
 
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:  
-            await cur.execute("""
-                SELECT has_reviewed
-                FROM user_access
-                WHERE user_id = %s  # Заменяем $1 на %s
-            """, (user_id,))
-            row = await cur.fetchone()
-            has_reviewed = row[0] if row else False 
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:  
+                await cur.execute("""
+                    SELECT has_reviewed
+                    FROM user_access
+                    WHERE user_id = %s
+                """, (user_id,))
+                row = await cur.fetchone()
+              
+                if not row:
+                    logging.warning(f"Пользователь {user_id} не найден в user_access")
+                    has_reviewed = False
+                else:
+                    has_reviewed = row[0]
+    except Exception as e:
+        logging.error(f"Ошибка при получении статуса отзыва: {e}")
+        has_reviewed = False
 
     buttons = [
         [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
