@@ -107,22 +107,30 @@ async def check_duplicate_file(file_id):
             await cur.execute("SELECT 1 FROM fiscal_checks WHERE file_id = %s", (file_id,))
             return await cur.fetchone() is not None
 
-async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
-    expire_time = datetime.now() + timedelta(days=duration_days)  
+async def set_user_access(user_id: int, duration_days: Optional[int], tariff: str) -> bool:
     try:
-        async with db_pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("""
-                    INSERT INTO user_access (user_id, expire_time, tariff)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (user_id) DO UPDATE 
-                    SET 
-                        expire_time = EXCLUDED.expire_time,
-                        tariff = EXCLUDED.tariff
-                """, (user_id, expire_time, tariff))
+        if duration_days is None:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE user_access SET tariff = $1 WHERE user_id = $2",
+                    tariff,
+                    user_id
+                )
+            return True
+      
+        expire_time = datetime.now() + timedelta(days=duration_days)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO user_access (user_id, expire_time, tariff) "
+                "VALUES ($1, $2, $3) "
+                "ON CONFLICT (user_id) DO UPDATE SET expire_time = $2, tariff = $3",
+                user_id,
+                expire_time,
+                tariff
+            )
         return True
     except Exception as e:
-        logging.error(f"Ошибка: {e}")
+        logging.error(f"Ошибка установки доступа: {e}")
         return False
 
 async def get_user_access(user_id):
