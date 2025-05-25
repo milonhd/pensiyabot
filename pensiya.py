@@ -508,9 +508,12 @@ async def handle_callback(call: types.CallbackQuery):
 @dp.callback_query(F.data == "start_review")
 async def handle_start_review(call: types.CallbackQuery, state: FSMContext):
     fake_call = types.CallbackQuery(
-        data=f"start_review_{call.from_user.id}",
+        id=call.id,
+        from_user=call.from_user,
         message=call.message,
-        from_user=call.from_user
+        chat_instance=call.chat_instance,
+        data=f"start_review_{call.from_user.id}",
+        inline_message_id=call.inline_message_id
     )
     await start_review(fake_call, state)
 
