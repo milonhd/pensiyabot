@@ -4,6 +4,7 @@ import asyncio
 import os
 import pdfplumber
 import re
+import database
 from aiogram import F
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
@@ -18,21 +19,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from database import (
-    DATABASE_URL, 
-    create_db_pool, 
-    close_db_pool, 
-    init_db, 
-    get_db_connection,
-    save_user,
-    get_user_access,
-    set_user_access,
-    revoke_user_access,
-    get_expired_users,
-    get_stats,
-    check_duplicate_file,
-    save_receipt
-)
 from reviews import register_reviews_handlers
 
 load_dotenv()
@@ -984,9 +970,9 @@ async def delete_bot_commands():
     await bot.delete_my_commands()
     
 async def on_startup():
-    await create_db_pool()
-    await init_db()
-    register_reviews_handlers(dp, bot, db_pool)
+    await database.create_db_pool()
+    await database.init_db()
+    register_reviews_handlers(dp, bot, database.db_pool)
     await delete_bot_commands()
     scheduler.start()
 
@@ -997,7 +983,7 @@ async def main():
 
 async def on_shutdown():
     scheduler.shutdown()
-    await close_db_pool()
+    await database.close_db_pool()
     await bot.session.close()
 
 if __name__ == '__main__':
