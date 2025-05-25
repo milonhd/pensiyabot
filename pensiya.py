@@ -529,7 +529,7 @@ async def parse_kaspi_receipt(pdf_path: str):
         return None
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
-async def handle_document(message: types.Message):
+async def handle_document((message: types.Message, state: FSMContext, bot: Bot):
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
     
@@ -616,7 +616,7 @@ async def handle_document(message: types.Message):
         await set_user_access(user.id, duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
-            reply_markup=await get_materials_keyboard(message.from_user.id)
+            reply_markup=await get_materials_keyboard(message.from_user.id, bot)
         )
 
     info = (
