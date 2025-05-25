@@ -557,10 +557,10 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
 
     required_amounts = {
-        "self": 100,
+        "self": 10000,
         "basic": 50000,
         "pro": 250000,
-        **{str(y): 10000 for y in range(2025, 2032)}  
+        **{str(y): 100 for y in range(2025, 2032)}  
     }
 
     errors = []
