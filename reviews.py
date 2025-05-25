@@ -14,13 +14,11 @@ ADMIN_ID = 957724800
 MIN_REVIEW_INTERVAL = timedelta(minutes=5)
 
 def register_reviews_handlers(dp, bot, pool):
-    global db_pool
-    db_pool = pool
 
     @dp.callback_query(F.data == "start_review")
     async def start_review(call: types.CallbackQuery, state: FSMContext):
 
-        async with db_pool.acquire() as conn:
+        async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
                     SELECT has_reviewed 
