@@ -689,52 +689,6 @@ async def check_access_periodically():
 
         await asyncio.sleep(10)
 
-@dp.callback_query(lambda c: c.data.startswith("approve_"))
-async def approve_user(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await call.answer("Недостаточно прав")
-
-    user_id = int(call.data.split("_")[1])
-    _, tariff = await get_user_access(user_id)
-
-    global db_pool  
-    if not db_pool:
-        await create_db_pool()
-
-    async with db_pool.acquire() as conn:  
-        async with conn.cursor() as cur:
-                await cur.execute("SELECT 1 FROM fiscal_checks WHERE user_id = %s", (user_id,))
-                if not await cur.fetchone():
-                    return await call.answer("❌ У пользователя нет подтвержденного чека")
-
-    if not tariff:
-        return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
-
-    if tariff == "basic":
-        days = 30
-    elif tariff == "pro":
-        days = 60
-    elif tariff in [str(y) for y in range(2025, 2032)]:
-        days = 7
-    else:
-        return await call.answer("❌ Неизвестный тариф.")
-
-    expire_date = datetime.now() + timedelta(days=days)
-    
-    await set_user_access(user_id, days, tariff)
-
-    with open("access_log.txt", "a", encoding="utf-8") as f:
-        f.write(f"{user_id} | {tariff} | {datetime.now().strftime('%d.%m.%Y %H:%M')} | {days} дней\n")
-
-    await bot.send_message(
-        user_id, 
-        f"✅ Доступ уровня {tariff.upper()} выдан на {days} дней!",
-        reply_markup=await get_materials_keyboard(user_id, db_pool, bot)
-    )
-
-    await call.message.edit_reply_markup(reply_markup=None)
-    await call.answer("Доступ выдан.")
-
 async def check_subscriptions():
     while True:
         users = await get_all_active_users()
