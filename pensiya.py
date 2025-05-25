@@ -53,10 +53,9 @@ class BroadcastStates(StatesGroup):
 
 db_pool = None
 
-def setup_reviews():
-    global db_pool
+def setup_reviews(pool):
     from reviews import register_reviews_handlers
-    register_reviews_handlers(dp, bot, db_pool)
+    register_reviews_handlers(dp, bot, pool)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
@@ -989,7 +988,7 @@ async def on_startup():
     global db_pool
     db_pool = await create_db_pool()
     await init_db()
-    register_reviews_handlers(dp, bot, db_pool)
+    setup_reviews(db_pool) 
     await delete_bot_commands()
     scheduler.start()
 
@@ -997,7 +996,7 @@ async def main():
     global db_pool
     db_pool = await create_db_pool()
     await init_db()
-    register_reviews_handlers(dp, bot, db_pool)
+    setup_reviews(db_pool)  
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
