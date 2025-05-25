@@ -591,7 +591,7 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     }
     
     duration_days = duration_map.get(tariff, 7)
-     success = await set_user_access(
+    success = await set_user_access(
         user_id=user.id,
         duration_days=duration_days,
         tariff=tariff
