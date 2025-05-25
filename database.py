@@ -21,8 +21,12 @@ logger = logging.getLogger(__name__)
 async def create_db_pool():
     global db_pool
     try:
+        if db_pool: 
+            logger.info("Пул подключений к БД уже существует.")
+            return db_pool
         db_pool = await aiopg.create_pool(DATABASE_URL, minsize=5, maxsize=20)
         logger.info("Пул подключений к БД создан успешно")
+        return db_pool
     except Exception as e:
         logger.error(f"Ошибка создания пула БД: {e}")
         raise
@@ -39,8 +43,8 @@ async def get_db_connection():
         raise Exception("Пул БД не инициализирован")
     return db_pool.acquire()
 
-async def init_db():
-    async with await get_db_connection() as conn:
+async def init_db(pool_instance): 
+    async with pool_instance.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS user_access (
@@ -105,7 +109,6 @@ async def check_duplicate_file(file_id):
 
 async def set_user_access(user_id: int, duration_days: int, tariff: str) -> bool:
     global db_pool 
-    
     expire_time = datetime.now() + timedelta(days=duration_days)
     try:
         async with db_pool.acquire() as conn:
