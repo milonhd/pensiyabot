@@ -575,7 +575,7 @@ async def handle_document(message: types.Message):
         "self": 10000,
         "basic": 50000,
         "pro": 250000,
-        "2025": 10000,
+        "2025": 100,
         "2026": 10000,
         "2027": 10000,
         "2028": 10000,
