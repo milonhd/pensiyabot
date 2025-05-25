@@ -546,7 +546,10 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
 
-    if await check_duplicate_file(message.document.file_id):
+    if await check_duplicate_receipt(
+        check_number=receipt_data["check_number"],
+        fp=receipt_data["fp"]
+    ):
         return await message.answer("❌ Этот чек уже был загружен ранее")
 
     file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
