@@ -379,7 +379,15 @@ async def handle_screenshot(call: types.CallbackQuery):
  
     duration_days = duration_map.get(selected_tariff_or_year, 7)
     
-    await set_user_access(user_id, duration_days, selected_tariff_or_year)
+    if tariff in ["self", "basic", "pro"] + [str(y) for y in range(2025, 2032)]:
+    duration = {
+        "self": 7,
+        "basic": 30,
+        "pro": 60,
+        **{str(y): 7 for y in range(2025, 2032)}
+    }.get(tariff, 7)
+
+    await set_user_access(user.id, duration, tariff)
   
     await call.message.answer(
         "📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
@@ -532,6 +540,9 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     global dp_pool
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
+
+    if not tariff:
+    return await message.answer("❌ Сначала выберите уровень доступа!")
     
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
@@ -712,8 +723,8 @@ async def approve_user(call: types.CallbackQuery):
     else:
         return await call.answer("❌ Неизвестный тариф.")
 
-    expire_time = datetime.now() + timedelta(seconds=duration)
-    await set_user_access(user.id, expire_time, tariff)
+    expire_date = datetime.now() + timedelta(days=days)
+    await set_user_access(user.id, expire_date, tariff)
 
     with open("access_log.txt", "a", encoding="utf-8") as f:
         f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
