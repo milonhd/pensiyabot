@@ -103,14 +103,13 @@ async def save_receipt(user_id, amount, check_number, fp, date_time, buyer_name,
         return False
 
 async def check_duplicate_receipt(check_number: str, fp: str, file_id: str) -> bool:
-    """Проверяет дубликаты по всем уникальным полям чека"""
     async with await get_db_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
                 SELECT 1 
                 FROM fiscal_checks 
-                WHERE check_number = %s OR fp = %s 
-            """, (check_number, fp, file_id))
+                WHERE check_number = %s OR fp = %s OR file_id = %s 
+            """, (check_number, fp, file_id))  
             return await cur.fetchone() is not None
 
 async def set_user_access(user_id: int, duration_days: Optional[int], tariff: str) -> bool:
