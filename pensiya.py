@@ -133,11 +133,12 @@ async def cmd_start(message: types.Message):
     main_kb.button(text="📄 Публичная оферта")
     main_kb.button(text="📞 Поддержка")
     main_kb.button(text="👤 Мой профиль")
+    main_kb.button(text="📝 Отзывы")
     
     if message.from_user.id == ADMIN_ID:
         main_kb.button(text="📢 Рассылка")
     
-    main_kb.adjust(2)  
+    main_kb.adjust(2, 2, 1)  
     
     if message.from_user.id == ADMIN_ID:
         await message.answer("Добро пожаловать, Админ! Используйте /help для получения списка команд.",  reply_markup=main_kb.as_markup(resize_keyboard=True, one_time_keyboard=False))
@@ -701,6 +702,19 @@ async def check_subscriptions():
                     reply_markup=main_keyboard
                 )
         await asyncio.sleep(3600)
+
+@dp.message(F.text == "📝 Отзывы", F.chat.type == ChatType.PRIVATE)
+async def handle_reviews_button(message: types.Message):
+    reviews_text = (
+        "🔍 **Канал с отзывами**\n\n"
+        "Здесь вы можете ознакомиться с мнением других пользователей:\n"
+        "👉 [Перейти](https://t.me/+Epr29f2a21kzOWIy)"
+    )
+    await message.answer(
+        reviews_text,
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
 
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
