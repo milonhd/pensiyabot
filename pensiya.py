@@ -370,14 +370,6 @@ async def handle_screenshot(call: types.CallbackQuery):
         return
     
     selected_tariff_or_year = call.data.split("_")[2]
-    
-    duration_map = {
-        "basic": 30,
-        "pro": 60,
-        **{str(year): 7 for year in range(2025, 2032)} 
-    }
- 
-    duration_days = duration_map.get(selected_tariff_or_year, 7)
   
     await call.message.answer(
         "📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
