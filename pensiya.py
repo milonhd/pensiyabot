@@ -64,7 +64,6 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 async def get_materials_keyboard(user_id, bot: Bot):
-    pool = bot.get('db_pool')
     if pool is None:
         logging.warning("Database pool not available in get_materials_keyboard.")
         return InlineKeyboardMarkup(inline_keyboard=[
@@ -529,6 +528,7 @@ async def parse_kaspi_receipt(pdf_path: str):
         return None
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
+global dp_pool
 async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
@@ -616,7 +616,7 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         await set_user_access(user.id, duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
-            reply_markup=await get_materials_keyboard(message.from_user.id, bot)
+            reply_markup=await get_materials_keyboard(message.from_user.id, db_pool, bot)
         )
 
     info = (
