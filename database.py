@@ -177,7 +177,8 @@ async def get_expired_users():
                 WHERE expire_time IS NOT NULL
                 AND expire_time < NOW()
             """)
-            return await cur.fetchall()
+            rows = await cur.fetchall()
+            return [(row[0], row[1]) for row in rows]
 
 async def save_user(user: types.User):
     global db_pool
