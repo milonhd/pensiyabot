@@ -378,16 +378,6 @@ async def handle_screenshot(call: types.CallbackQuery):
     }
  
     duration_days = duration_map.get(selected_tariff_or_year, 7)
-    
-    if tariff in ["self", "basic", "pro"] + [str(y) for y in range(2025, 2032)]:
-    duration = {
-        "self": 7,
-        "basic": 30,
-        "pro": 60,
-        **{str(y): 7 for y in range(2025, 2032)}
-    }.get(tariff, 7)
-
-    await set_user_access(user.id, duration, tariff)
   
     await call.message.answer(
         "📄 Пожалуйста, отправьте PDF-файл фискального чека из Kaspi!\n\n"
