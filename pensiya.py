@@ -711,21 +711,26 @@ async def approve_user(call: types.CallbackQuery):
         return await call.answer("❌ У пользователя не выбран тариф. Сначала выберите тариф!")
 
     if tariff == "basic":
-        duration = 30 * 86400
+        days = 30
     elif tariff == "pro":
-        duration = 60 * 86400
+        days = 60
     elif tariff in [str(y) for y in range(2025, 2032)]:
-        duration = 7 * 86400
+        days = 7
     else:
         return await call.answer("❌ Неизвестный тариф.")
 
     expire_date = datetime.now() + timedelta(days=days)
-    await set_user_access(user.id, expire_date, tariff)
+    
+    await set_user_access(user_id, days, tariff)
 
     with open("access_log.txt", "a", encoding="utf-8") as f:
-        f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
+        f.write(f"{user_id} | {tariff} | {datetime.now().strftime('%d.%m.%Y %H:%M')} | {days} дней\n")
 
-    await bot.send_message(user_id, f"✅ Доступ уровня {tariff.upper()} выдан на {duration // 86400} дней!", reply_markup=await get_materials_keyboard(user_id))
+    await bot.send_message(
+        user_id, 
+        f"✅ Доступ уровня {tariff.upper()} выдан на {days} дней!",
+        reply_markup=await get_materials_keyboard(user_id, db_pool, bot)
+    )
 
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
