@@ -735,6 +735,10 @@ async def check_subscriptions():
 
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
+    global db_pool
+    if not db_pool:
+        db_pool = await create_db_pool() 
+        
     await save_user(message.from_user)
     
     if db_pool is None:
