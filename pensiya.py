@@ -63,15 +63,18 @@ class BroadcastStates(StatesGroup):
 db_pool = None
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
-    [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
-    [InlineKeyboardButton(text="Уровень ПРО", callback_data="pro")],
+    [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
+    [InlineKeyboardButton(text="🔸 Уровень БАЗОВЫЙ", callback_data="basic")],
+    [InlineKeyboardButton(text="❌ Уровень ПРО", callback_data="pro")],
 ])
 
-materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials"),
-    InlineKeyboardButton(text="📝 Оставить отзыв", callback_data=f"start_review")]
-])
+def get_materials_keyboard(has_review=True):
+    buttons = [
+        [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
+    ]
+    if has_review:
+        buttons.append([InlineKeyboardButton(text="📝 Оставить отзыв", callback_data="start_review")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_self_years_keyboard():
     builder = InlineKeyboardBuilder()
