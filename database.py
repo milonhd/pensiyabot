@@ -6,6 +6,7 @@ from aiogram import types
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
