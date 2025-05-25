@@ -92,11 +92,11 @@ def register_reviews_handlers(dp, bot, pool):
 
     @dp.callback_query(F.data == "skip_media")
     async def skip_media(call: types.CallbackQuery, state: FSMContext):
-    try:
-        
-        await call.message.delete()
-    except Exception as e:
-        logging.error(f"Ошибка удаления сообщения: {e}")
+        try:
+            
+            await call.message.delete()
+        except Exception as e:
+            logging.error(f"Ошибка удаления сообщения: {e}")
 
     
     await send_review_to_admin(bot, state)
