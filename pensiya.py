@@ -65,6 +65,11 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 async def get_materials_keyboard(user_id):
+    if db_pool is None:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
+        ])
+    
     async with db_pool.acquire() as conn:
         has_reviewed = await conn.fetchval("""
             SELECT has_reviewed 
@@ -732,6 +737,10 @@ async def check_subscriptions():
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
     await save_user(message.from_user)
+    
+    if db_pool is None:
+        await message.answer("❌ База данных недоступна. Попробуйте позже.")
+        return
     
     expire_time, tariff = await get_user_access(message.from_user.id)
     user = message.from_user
