@@ -18,7 +18,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from reviews import start_review
 from database import (
     DATABASE_URL, 
     create_db_pool, 
