@@ -23,7 +23,7 @@ from reviews import register_reviews_handlers
 from database import (
     save_user, get_user_access, set_user_access, revoke_user_access,
     get_expired_users, get_all_active_users, get_all_users, get_stats,
-    check_duplicate_file, save_receipt, create_db_pool, init_db
+    check_duplicate_receipt, save_receipt, create_db_pool, init_db
 )
 
 load_dotenv()
