@@ -20,6 +20,11 @@ from aiogram.types import BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from reviews import register_reviews_handlers
+from database import (
+    save_user, get_user_access, set_user_access, revoke_user_access,
+    get_expired_users, get_all_active_users, get_all_users, get_stats,
+    check_duplicate_file, save_receipt, create_db_pool, init_db
+)
 
 load_dotenv()
 
@@ -38,6 +43,8 @@ os.makedirs(RECEIPT_DIR, exist_ok=True)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
+
+logger = logging.getLogger(__name__)
 
 class BroadcastStates(StatesGroup):
     waiting_content = State()
@@ -705,7 +712,7 @@ async def approve_user(call: types.CallbackQuery):
     with open("access_log.txt", "a", encoding="utf-8") as f:
         f.write(f"{user_id} | {tariff} | {time.ctime()} | {duration // 86400} дней\n")
 
-    await bot.send_message(user_id, f"✅ Доступ уровня {tariff.upper()} выдан на {duration // 86400} дней!", reply_markup=materials_keyboard)
+    await bot.send_message(user_id, f"✅ Доступ уровня {tariff.upper()} выдан на {duration // 86400} дней!", reply_markup=await get_materials_keyboard(user_id))
 
     await call.message.edit_reply_markup(reply_markup=None)
     await call.answer("Доступ выдан.")
@@ -970,20 +977,24 @@ async def delete_bot_commands():
     await bot.delete_my_commands()
     
 async def on_startup():
-    await database.create_db_pool()
-    await database.init_db()
-    register_reviews_handlers(dp, bot, database.db_pool)
+    global db_pool
+    db_pool = await create_db_pool()
+    await init_db()
+    register_reviews_handlers(dp, bot, db_pool)
     await delete_bot_commands()
     scheduler.start()
 
 async def main():
-    await create_db_pool()
+    global db_pool
+    db_pool = await create_db_pool()
     await init_db()
+    register_reviews_handlers(dp, bot, db_pool)
     asyncio.create_task(check_access_periodically())
 
 async def on_shutdown():
     scheduler.shutdown()
-    await database.close_db_pool()
+    if db_pool:
+        await db_pool.close()
     await bot.session.close()
 
 if __name__ == '__main__':
