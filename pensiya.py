@@ -60,7 +60,7 @@ class BroadcastStates(StatesGroup):
 
 db_pool = None
 
-register_reviews_handlers(dp, bot)
+register_reviews_handlers(dp, bot, db_pool)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
