@@ -109,29 +109,31 @@ async def check_duplicate_file(file_id):
             return await cur.fetchone() is not None
 
 async def set_user_access(user_id: int, duration_days: Optional[int], tariff: str) -> bool:
+    global db_pool  
     try:
-        if duration_days is None:
-            async with pool.acquire() as conn:
+        async with db_pool.acquire() as conn:  
+            if duration_days is None:
                 await conn.execute(
                     "UPDATE user_access SET tariff = $1 WHERE user_id = $2",
                     tariff,
                     user_id
                 )
+            else:
+                expire_time = datetime.now() + timedelta(days=duration_days)
+                await conn.execute(
+                    """
+                    INSERT INTO user_access (user_id, expire_time, tariff)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (user_id) DO UPDATE 
+                    SET expire_time = $2, tariff = $3
+                    """,
+                    user_id,
+                    expire_time,
+                    tariff
+                )
             return True
-      
-        expire_time = datetime.now() + timedelta(days=duration_days)
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO user_access (user_id, expire_time, tariff) "
-                "VALUES ($1, $2, $3) "
-                "ON CONFLICT (user_id) DO UPDATE SET expire_time = $2, tariff = $3",
-                user_id,
-                expire_time,
-                tariff
-            )
-        return True
     except Exception as e:
-        logging.error(f"Ошибка установки доступа: {e}")
+        logging.error(f"Ошибка установки доступа: {e}", exc_info=True)
         return False
 
 async def get_user_access(user_id):
