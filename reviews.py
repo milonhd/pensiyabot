@@ -13,16 +13,21 @@ REVIEWS_CHANNEL_ID = -1002513508156
 ADMIN_ID = 957724800
 MIN_REVIEW_INTERVAL = timedelta(minutes=5)
 
-def register_reviews_handlers(dp, bot, pool):
+def register_reviews_handlers(dp, bot):
 
     @dp.callback_query(F.data == "start_review")
     async def start_review(call: types.CallbackQuery, state: FSMContext):
+        pool = bot.get('db_pool')
+        if pool is None:
+            await call.answer("Произошла ошибка инициализации базы данных. Пожалуйста, попробуйте позже.", show_alert=True)
+            logging.error("db_pool was None in start_review handler.")
+            return
 
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""
-                    SELECT has_reviewed 
-                    FROM user_access 
+                    SELECT has_reviewed
+                    FROM user_access
                     WHERE user_id = %s
                 """, (call.from_user.id,))
                 row = await cur.fetchone()
@@ -31,7 +36,7 @@ def register_reviews_handlers(dp, bot, pool):
         if has_reviewed:
             await call.answer("❌ Вы уже оставили отзыв!", show_alert=True)
             return
-        
+
         user = call.from_user
         now = datetime.now()
 
