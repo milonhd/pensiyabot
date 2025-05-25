@@ -25,7 +25,7 @@ async def start_review(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(ReviewStates.waiting_review_text)
 
 def register_reviews_handlers(dp, bot):
-    @dp.callback_query(F.data.startswith("start_review_"))
+    @dp.callback_query(F.data == "start_review")
     async def _start_review(call: types.CallbackQuery, state: FSMContext):
         await start_review(call, state)
     
