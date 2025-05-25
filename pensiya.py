@@ -63,7 +63,7 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="❌ Уровень ПРО", callback_data="pro")],
 ])
 
-async def get_materials_keyboard(user_id, bot: Bot):
+async def get_materials_keyboard(user_id, db_pool, bot: Bot):
     if pool is None:
         logging.warning("Database pool not available in get_materials_keyboard.")
         return InlineKeyboardMarkup(inline_keyboard=[
@@ -613,8 +613,6 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
             **{str(y): 7 for y in range(2025, 2032)}
         }.get(tariff, 7) * 86400
 
-        print(f"DEBUG: user_id={user.id}, duration_in_days={duration_in_days}, tariff={tariff}")
-        logger.info(f"DEBUG: user_id={user.id}, duration_in_days={duration_in_days}, tariff={tariff}")
         await set_user_access(user.id, duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
