@@ -13,7 +13,7 @@ REVIEWS_CHANNEL_ID = -1002513508156
 ADMIN_ID = 957724800
 MIN_REVIEW_INTERVAL = timedelta(minutes=5)
 
-def register_reviews_handlers(dp, bot):
+def register_reviews_handlers(dp, bot, pool):
     global db_pool
     db_pool = pool
 
