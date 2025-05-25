@@ -98,10 +98,9 @@ def register_reviews_handlers(dp, bot, pool):
         except Exception as e:
             logging.error(f"Ошибка удаления сообщения: {e}")
 
-    
-    await send_review_to_admin(bot, state)
-    await call.message.answer("✅ Отзыв отправлен на модерацию!")
-    await state.clear()
+        await send_review_to_admin(bot, state)
+        await call.message.answer("✅ Отзыв отправлен на модерацию!")
+        await state.clear()
 
     @dp.callback_query(F.data.startswith("approve_review_"))
     async def approve_review(call: types.CallbackQuery):
