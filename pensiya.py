@@ -68,10 +68,22 @@ main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="❌ Уровень ПРО", callback_data="pro")],
 ])
 
-materials_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials"),
-    InlineKeyboardButton(text="📝 Оставить отзыв", callback_data=f"start_review")]
-])
+async def get_materials_keyboard(user_id):
+    async with db_pool.acquire() as conn:
+        has_reviewed = await conn.fetchval("""
+            SELECT has_reviewed 
+            FROM user_access 
+            WHERE user_id = $1
+        """, user_id)
+    
+    buttons = [
+        [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
+    ]
+    
+    if not has_reviewed:
+        buttons.append([InlineKeyboardButton(text="📝 Оставить отзыв", callback_data="start_review")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_self_years_keyboard():
     builder = InlineKeyboardBuilder()
@@ -177,7 +189,7 @@ async def grant_access(message: types.Message):
             expire_date = (datetime.now() + timedelta(days=duration_days)).strftime("%d.%m.%Y %H:%M")
             await message.answer(f"✅ Пользователю {user_id} выдан доступ до {expire_date} ({tariff.upper()})")
             await bot.send_message(user_id, f"✅ Доступ к материалам уровня {tariff.upper()} активирован до {expire_date}!",
-            reply_markup=materials_keyboard
+            reply_markup=await get_materials_keyboard(user_id)
         )
         else:
             await message.answer("❌ Ошибка при выдаче доступа")
@@ -611,7 +623,7 @@ async def handle_document(message: types.Message):
         await set_user_access(user.id, time.time() + duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
-            reply_markup=materials_keyboard
+            reply_markup=await get_materials_keyboard(message.from_user.id)
         )
 
     info = (
@@ -732,6 +744,12 @@ async def check_subscriptions():
 
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
+
+    async with db_pool.acquire() as conn:
+            has_reviewed = await conn.fetchval("SELECT has_reviewed FROM user_access WHERE user_id = $1", user.id)
+        
+        profile_text += "\n\n✍️ Отзыв: " + ("✅ Оставлен" if has_reviewed else "❌ Не оставлен")
+    
     await save_user(message.from_user) 
     
     expire_time, tariff = await get_user_access(message.from_user.id)
