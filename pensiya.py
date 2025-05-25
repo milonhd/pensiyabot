@@ -529,7 +529,7 @@ async def parse_kaspi_receipt(pdf_path: str):
         return None
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
-async def handle_document((message: types.Message, state: FSMContext, bot: Bot):
+async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
     
