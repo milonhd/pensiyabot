@@ -713,14 +713,15 @@ async def approve_user(call: types.CallbackQuery):
 async def check_subscriptions():
     while True:
         users = await get_all_active_users()
-        for user_id, expire_time, _ in users:
-            if (expire_time - time.time()) < 86400 * 3: 
+        for user_id, expire_time_ts, _, _ in users:  
+            expire_time = datetime.fromtimestamp(expire_time_ts)
+            if (expire_time - datetime.now()).total_seconds() < 86400 * 3:
                 await bot.send_message(
                     user_id,
-                    f"⚠️ Ваш доступ истекает через 3 дня!",
+                    "⚠️ Ваш доступ истекает через 3 дня!",
                     reply_markup=main_keyboard
                 )
-        await asyncio.sleep(3600) 
+        await asyncio.sleep(3600)
 
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
