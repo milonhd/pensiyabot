@@ -33,7 +33,6 @@ from database import (
     check_duplicate_file,
     save_receipt
 )
-from reviews import register_reviews_handlers
 
 load_dotenv()
 
@@ -60,7 +59,10 @@ class BroadcastStates(StatesGroup):
 
 db_pool = None
 
-register_reviews_handlers(dp, bot, db_pool)
+def setup_reviews():
+    global db_pool
+    from reviews import register_reviews_handlers
+    register_reviews_handlers(dp, bot, db_pool)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
