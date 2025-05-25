@@ -11,15 +11,15 @@ class ReviewStates(StatesGroup):
 REVIEWS_CHANNEL_ID = -1002513508156
 ADMIN_ID = 957724800 
 
+@dp.callback_query(F.data == "start_review")
 async def start_review(call: types.CallbackQuery, state: FSMContext):
-    user_id = call.data.split("_")[-1]
-    await state.update_data(user_id=user_id)
+    user = call.from_user
+    await state.update_data(user_id=user.id, username=user.username)
+
     await call.message.answer(
         "✍️ Напишите ваш отзыв (максимум 500 символов):",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_review")]
-            ]
+            inline_keyboard=[[InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_review")]]
         )
     )
     await state.set_state(ReviewStates.waiting_review_text)
@@ -32,27 +32,20 @@ def register_reviews_handlers(dp, bot):
     @dp.message(ReviewStates.waiting_review_text)
     async def process_review_text(message: types.Message, state: FSMContext):
         data = await state.get_data()
-        user_id = data["user_id"]
+        user_id = data.get("user_id")
+        username = data.get("username") or "Без username"
         
         if len(message.text) > 500:
             return await message.answer("❌ Превышен лимит символов!")
         
-        mod_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="✅ Одобрить", 
-                    callback_data=f"approve_{user_id}_{message.message_id}"
-                ),
-                InlineKeyboardButton(
-                    text="❌ Отклонить", 
-                    callback_data=f"reject_{user_id}"
-                )
-            ]
-        ])
+        mod_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{user_id}_{message.message_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}")
+        ]])
         
         await bot.send_message(
             chat_id=ADMIN_ID,
-            text=f"📨 Отзыв от пользователя {user_id}:\n\n{message.text}",
+            text=f"📨 Отзыв от пользователя:\n🆔 ID: {user_id}\n👤 Username: @{username}\n\n{message.text}",
             reply_markup=mod_kb
         )
         
