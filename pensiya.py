@@ -546,12 +546,6 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
 
-    if await check_duplicate_receipt(
-        check_number=receipt_data["check_number"],
-        fp=receipt_data["fp"]
-    ):
-        return await message.answer("❌ Этот чек уже был загружен ранее")
-
     file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
     await bot.download(file=await bot.get_file(message.document.file_id), destination=file_path)
     receipt_data = await parse_kaspi_receipt(file_path)
@@ -559,24 +553,27 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
 
-    try:
-        date_time = datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M")
-    except ValueError as e:
-        return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
+    if await check_duplicate_receipt(
+        check_number=receipt_data.get("check_number"),
+        fp=receipt_data.get("fp"),
+        file_id=message.document.file_id
+    ):
+        return await message.answer("❌ Этот чек уже был загружен ранее")
 
+    errors = []
+    if receipt_data.get("iin") != "620613400018":
+        errors.append("ИИН продавца не совпадает")
+    
     required_amounts = {
         "self": 10000,
         "basic": 50000,
         "pro": 250000,
-        **{str(y): 100 for y in range(2025, 2032)}  
+        **{str(y): 100 for y in range(2025, 2032)}
     }
-
-    errors = []
-    if receipt_data["iin"] != "620613400018":
-        errors.append("ИИН продавца не совпадает")
-    if receipt_data["amount"] != required_amounts.get(tariff, 0):
+    
+    if receipt_data.get("amount") != required_amounts.get(tariff, 0):
         errors.append(f"Сумма не соответствует тарифу {tariff}")
-
+    
     if errors:
         return await message.answer("❌ Ошибки в чеке:\n" + "\n".join(errors))
 
