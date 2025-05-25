@@ -53,9 +53,9 @@ class BroadcastStates(StatesGroup):
 
 db_pool = None
 
-def setup_reviews(dp, bot): 
+def setup_reviews(dp, bot, pool): 
     from reviews import register_reviews_handlers
-    register_reviews_handlers(dp, bot)
+    register_reviews_handlers(dp, bot, pool)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
