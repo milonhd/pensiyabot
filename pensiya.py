@@ -523,6 +523,8 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
 
+    expire_time, tariff = await get_user_access(user.id)
+
     if not tariff:
         return await message.answer("❌ Сначала выберите уровень доступа!")
     
