@@ -744,16 +744,13 @@ async def check_subscriptions():
 
 @dp.message(F.text == "👤 Мой профиль", F.chat.type == ChatType.PRIVATE)
 async def handle_profile(message: types.Message):
-
-    async with db_pool.acquire() as conn:
-            has_reviewed = await conn.fetchval("SELECT has_reviewed FROM user_access WHERE user_id = $1", user.id)
-        
-        profile_text += "\n\n✍️ Отзыв: " + ("✅ Оставлен" if has_reviewed else "❌ Не оставлен")
-    
-    await save_user(message.from_user) 
+    await save_user(message.from_user)
     
     expire_time, tariff = await get_user_access(message.from_user.id)
     user = message.from_user
+  
+    async with db_pool.acquire() as conn:
+        has_reviewed = await conn.fetchval("SELECT has_reviewed FROM user_access WHERE user_id = $1", user.id)
     
     profile_text = (
         f"👤 <b>Ваш профиль</b>\n\n"
@@ -771,6 +768,8 @@ async def handle_profile(message: types.Message):
         )
     else:
         profile_text += "❌ <b>Подписка неактивна</b>\n\n👉 Выберите уровень командой /start"
+    
+    profile_text += "\n\n✍️ Отзыв: " + ("✅ Оставлен" if has_reviewed else "❌ Не оставлен")
     
     await message.answer(profile_text, parse_mode="HTML")
 
