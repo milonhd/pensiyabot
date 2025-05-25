@@ -80,44 +80,20 @@ def register_reviews_handlers(dp, bot):
     @dp.callback_query(F.data.startswith("approve_"))
     async def approve_review(call: types.CallbackQuery):
         user_id = int(call.data.split("_")[1])
-    
         await bot.send_message(user_id, "🎉 Ваш отзыв был одобрен!")
-    
+
         text = call.message.caption or call.message.text or ""
         review_text = text.split("\n\n", 1)[-1].strip()
-     
-        try:
-            await bot.delete_message(chat_id=user_id, message_id=call.message.message_id - 1)
-        except Exception as e:
-            logging.error(f"Ошибка удаления сообщения: {e}")
-    
-        new_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
-        ])
-        
-        try:
-            await bot.edit_message_reply_markup(
-                chat_id=user_id,
-                message_id=call.message.message_id - 2,  
-                reply_markup=new_keyboard
-            )
-        except Exception as e:
-            logging.error(f"Ошибка изменения клавиатуры: {e}")
-            await bot.send_message(
-                user_id, 
-                "Ваш отзыв опубликован!",
-                reply_markup=new_keyboard
-            )
-    
+
         if call.message.photo:
             await bot.send_photo(REVIEWS_CHANNEL_ID, call.message.photo[-1].file_id,
-                                caption=f"🌟 Новый отзыв!\n\n{review_text}")
+                                 caption=f"🌟 Новый отзыв!\n\n{review_text}")
         elif call.message.video:
             await bot.send_video(REVIEWS_CHANNEL_ID, call.message.video.file_id,
-                                caption=f"🌟 Новый отзыв!\n\n{review_text}")
+                                 caption=f"🌟 Новый отзыв!\n\n{review_text}")
         else:
             await bot.send_message(REVIEWS_CHANNEL_ID, f"🌟 Новый отзыв!\n\n{review_text}")
-    
+
         await call.message.edit_reply_markup(reply_markup=None)
         await call.answer("Отзыв одобрен и опубликован.")
 
