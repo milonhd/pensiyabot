@@ -21,11 +21,14 @@ def register_reviews_handlers(dp, bot, pool):
     async def start_review(call: types.CallbackQuery, state: FSMContext):
 
         async with db_pool.acquire() as conn:
-            has_reviewed = await conn.fetchval("""
-                SELECT has_reviewed 
-                FROM user_access 
-                WHERE user_id = $1
-            """, call.from_user.id)
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    SELECT has_reviewed 
+                    FROM user_access 
+                    WHERE user_id = %s
+                """, (call.from_user.id,))
+                row = await cur.fetchone()
+                has_reviewed = row[0] if row else False
 
         if has_reviewed:
             await call.answer("❌ Вы уже оставили отзыв!", show_alert=True)
@@ -96,11 +99,12 @@ def register_reviews_handlers(dp, bot, pool):
         user_id = int(call.data.split("_")[1])
 
         async with db_pool.acquire() as conn:
-                await conn.execute("""
+            async with conn.cursor() as cur:
+                await cur.execute("""
                     UPDATE user_access 
                     SET has_reviewed = TRUE 
-                    WHERE user_id = $1
-                """, user_id)
+                    WHERE user_id = %s
+                """, (user_id,))
         
         await bot.send_message(user_id, "🎉 Ваш отзыв был одобрен!")
 
