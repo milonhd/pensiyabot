@@ -739,27 +739,30 @@ async def check_subscriptions():
 async def handle_profile(message: types.Message):
     global db_pool
     if not db_pool:
-        db_pool = await create_db_pool() 
-        
+        db_pool = await create_db_pool()
+
     await save_user(message.from_user)
-    
+
     if db_pool is None:
         await message.answer("❌ База данных недоступна. Попробуйте позже.")
         return
-    
+
     expire_time, tariff = await get_user_access(message.from_user.id)
     user = message.from_user
-  
+
     async with db_pool.acquire() as conn:
-        has_reviewed = await conn.fetchval("SELECT has_reviewed FROM user_access WHERE user_id = $1", user.id)
-    
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT has_reviewed FROM user_access WHERE user_id = %s", (user.id,))
+            record = await cur.fetchone()
+            has_reviewed = record[0] if record else False 
+
     profile_text = (
         f"👤 <b>Ваш профиль</b>\n\n"
         f"🆔 ID: {user.id}\n"
         f"👤 Имя: {user.full_name}\n"
         f"📅 Дата регистрации: {datetime.now().strftime('%d.%m.%Y')}\n\n"
     )
-    
+
     if expire_time and expire_time > datetime.now():
         expire_date = expire_time.strftime("%d.%m.%Y %H:%M")
         profile_text += (
@@ -769,9 +772,9 @@ async def handle_profile(message: types.Message):
         )
     else:
         profile_text += "❌ <b>Подписка неактивна</b>\n\n👉 Выберите уровень командой /start"
-    
+
     profile_text += "\n\n✍️ Отзыв: " + ("✅ Оставлен" if has_reviewed else "❌ Не оставлен")
-    
+
     await message.answer(profile_text, parse_mode="HTML")
 
 @dp.message(F.text == "📄 Публичная оферта", F.chat.type == ChatType.PRIVATE)
