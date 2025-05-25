@@ -993,8 +993,7 @@ async def delete_bot_commands():
 async def on_startup(bot: Bot): 
     global db_pool
     db_pool = await create_db_pool() 
-    await init_db(db_pool) 
-    bot['db_pool'] = db_pool 
+    await init_db(db_pool)  
     setup_reviews(dp, bot) 
     await delete_bot_commands()
     scheduler.start()
