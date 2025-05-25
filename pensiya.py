@@ -53,7 +53,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-register_reviews_handlers(dp, bot)
+register_reviews_handlers(dp, bot, db_pool)
 
 class BroadcastStates(StatesGroup):
     waiting_content = State()
@@ -992,6 +992,7 @@ async def delete_bot_commands():
 async def on_startup():
     await create_db_pool()
     await init_db()
+    register_reviews_handlers(dp, bot, db_pool)
     await delete_bot_commands()
     scheduler.start()
 
