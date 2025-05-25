@@ -577,6 +577,17 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     if errors:
         return await message.answer("❌ Ошибки в чеке:\n" + "\n".join(errors))
 
+    try:
+        date_time_str = receipt_data.get("date_time")
+        if not date_time_str:
+            return await message.answer("❌ В чеке отсутствует дата оплаты")
+
+        date_time = datetime.strptime(date_time_str, "%d.%m.%Y %H:%M")
+    except ValueError as e:
+        return await message.answer(f"❌ Ошибка формата даты: {str(e)}")
+    except KeyError:
+        return await message.answer("❌ Не удалось прочитать дату оплаты")
+    
     if not await save_receipt(
         user_id=user.id,
         amount=receipt_data["amount"],
