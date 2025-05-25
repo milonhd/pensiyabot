@@ -15,7 +15,7 @@ MIN_REVIEW_INTERVAL = timedelta(minutes=5)
 
 def register_reviews_handlers(dp, bot):
     global db_pool
-    db_pool = pool
+    db_pool = db_pool_param
 
     @dp.callback_query(F.data == "start_review")
     async def start_review(call: types.CallbackQuery, state: FSMContext):
