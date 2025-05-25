@@ -612,7 +612,9 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
             "pro": 60,
             **{str(y): 7 for y in range(2025, 2032)}
         }.get(tariff, 7) * 86400
-        
+
+        print(f"DEBUG: user_id={user.id}, duration_in_days={duration_in_days}, tariff={tariff}")
+        logger.info(f"DEBUG: user_id={user.id}, duration_in_days={duration_in_days}, tariff={tariff}")
         await set_user_access(user.id, duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
