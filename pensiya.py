@@ -616,7 +616,7 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         await set_user_access(user.id, duration, tariff)
         await message.answer(
             f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
-            reply_markup=await get_materials_keyboard(message.from_user.id, pool, bot)
+            reply_markup=await get_materials_keyboard(message.from_user.id, db_pool, bot)
         )
 
     info = (
