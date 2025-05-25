@@ -33,6 +33,7 @@ from database import (
     check_duplicate_file,
     save_receipt
 )
+from reviews import register_reviews_handlers
 
 load_dotenv()
 
