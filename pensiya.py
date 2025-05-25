@@ -393,6 +393,22 @@ async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
 
+    duration_map = {
+            "self": 7,
+            "basic": 30,
+            "pro": 60
+    }
+
+    if data not in duration_map:
+        await call.answer("❌ Неизвестный тариф")
+        return
+
+    success = await set_user_access(user_id, duration_map[data], data)
+
+    if not success:
+        await call.answer("❌ Ошибка сохранения тарифа")
+        return
+    
     if data == "self":
         await call.message.answer("📅 Выберите год вашего выхода на пенсию:", reply_markup=get_self_years_keyboard())
         return
