@@ -706,9 +706,8 @@ async def check_subscriptions():
 @dp.message(F.text == "📝 Отзывы", F.chat.type == ChatType.PRIVATE)
 async def handle_reviews_button(message: types.Message):
     reviews_text = (
-        "🔍 **Канал с отзывами**\n\n"
-        "Здесь вы можете ознакомиться с мнением других пользователей:\n"
-        "👉 [Перейти](https://t.me/+Epr29f2a21kzOWIy)"
+        "🔍 **Наш телеграм-канал с отзывами**\n\n"
+        "👉 [Перейти](https://t.me/+Epr29f2a21kzOWIy)\n"
     )
     await message.answer(
         reviews_text,
