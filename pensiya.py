@@ -71,11 +71,14 @@ async def get_materials_keyboard(user_id, pool, bot: Bot):
         ])
 
     async with pool.acquire() as conn:
-        has_reviewed = await conn.fetchval("""
-            SELECT has_reviewed
-            FROM user_access
-            WHERE user_id = $1
-        """, user_id)
+        async with conn.cursor() as cur:  
+            await cur.execute("""
+                SELECT has_reviewed
+                FROM user_access
+                WHERE user_id = %s  # Заменяем $1 на %s
+            """, (user_id,))
+            row = await cur.fetchone()
+            has_reviewed = row[0] if row else False 
 
     buttons = [
         [InlineKeyboardButton(text="🏰 Получить материалы", callback_data="get_materials")]
@@ -189,9 +192,11 @@ async def grant_access(message: types.Message):
         if success:
             expire_date = (datetime.now() + timedelta(days=duration_days)).strftime("%d.%m.%Y %H:%M")
             await message.answer(f"✅ Пользователю {user_id} выдан доступ до {expire_date} ({tariff.upper()})")
-            await bot.send_message(user_id, f"✅ Доступ к материалам уровня {tariff.upper()} активирован до {expire_date}!",
-            reply_markup=await get_materials_keyboard(user_id)
-        )
+            await bot.send_message(
+                user_id, 
+                f"✅ Доступ к материалам уровня {tariff.upper()} активирован до {expire_date}!",
+                reply_markup=await get_materials_keyboard(user_id, db_pool, bot)
+            )
         else:
             await message.answer("❌ Ошибка при выдаче доступа")
 
