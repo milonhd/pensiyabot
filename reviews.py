@@ -4,7 +4,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta
-from database import db_pool
 
 class ReviewStates(StatesGroup):
     waiting_review_text = State()
@@ -15,6 +14,8 @@ ADMIN_ID = 957724800
 MIN_REVIEW_INTERVAL = timedelta(minutes=5)
 
 def register_reviews_handlers(dp, bot):
+    global db_pool
+    db_pool = pool
 
     @dp.callback_query(F.data == "start_review")
     async def start_review(call: types.CallbackQuery, state: FSMContext):
