@@ -532,7 +532,7 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
     user = message.from_user
 
     if not tariff:
-    return await message.answer("❌ Сначала выберите уровень доступа!")
+        return await message.answer("❌ Сначала выберите уровень доступа!")
     
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
