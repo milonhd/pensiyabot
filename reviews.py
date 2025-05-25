@@ -92,13 +92,20 @@ def register_reviews_handlers(dp, bot, pool):
 
     @dp.callback_query(F.data == "skip_media")
     async def skip_media(call: types.CallbackQuery, state: FSMContext):
-        await send_review_to_admin(bot, state)
-        await call.message.answer("✅ Отзыв отправлен на модерацию!")
-        await state.clear()
+    try:
+        
+        await call.message.delete()
+    except Exception as e:
+        logging.error(f"Ошибка удаления сообщения: {e}")
 
-    @dp.callback_query(F.data.startswith("approve_"))
+    
+    await send_review_to_admin(bot, state)
+    await call.message.answer("✅ Отзыв отправлен на модерацию!")
+    await state.clear()
+
+    @dp.callback_query(F.data.startswith("approve_review_"))
     async def approve_review(call: types.CallbackQuery):
-        user_id = int(call.data.split("_")[1])
+        user_id = int(call.data.split("_")[2])
 
         async with db_pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -142,7 +149,7 @@ async def send_review_to_admin(bot, state: FSMContext):
 
     caption = f"📨 Отзыв от пользователя:\n🆔 ID: {user_id}\n👤 Username: @{username}\n\n{text}"
     kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{user_id}"),
+        InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_review_{user_id}"),
         InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}")
     ]])
 
