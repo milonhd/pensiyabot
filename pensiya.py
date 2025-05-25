@@ -53,14 +53,14 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-register_reviews_handlers(dp, bot)
-
 class BroadcastStates(StatesGroup):
     waiting_content = State()
     waiting_confirm = State()
     waiting_time = State()
 
 db_pool = None
+
+register_reviews_handlers(dp, bot)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
