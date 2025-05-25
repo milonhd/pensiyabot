@@ -497,7 +497,6 @@ async def handle_start_review(call: types.CallbackQuery, state: FSMContext):
         message=call.message,
         from_user=call.from_user
     )
-    from reviews import start_review
     await start_review(fake_call, state)
 
 @dp.callback_query(F.data == "used_link")
