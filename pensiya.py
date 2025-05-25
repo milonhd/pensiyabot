@@ -336,6 +336,8 @@ async def show_stats(message: types.Message):
 @dp.callback_query(lambda c: c.data.startswith("year_"))
 async def handle_year_selection(call: types.CallbackQuery):
     year = call.data.split("_")[1]
+
+    await set_user_access(call.from_user.id, duration_days=None, tariff=year)
     
     text = """
 🔹 Уровень САМОСТОЯТЕЛЬНЫЙ — чтобы увидеть свою будущую пенсию без сложных расчётов
@@ -393,21 +395,13 @@ async def handle_callback(call: types.CallbackQuery):
     data = call.data
     user_id = call.from_user.id
 
-    duration_map = {
-            "self": 7,
-            "basic": 30,
-            "pro": 60
-    }
+    if data in ["self", "basic", "pro"]:
+        
+        success = await set_user_access(user_id, duration_days=None, tariff=data)
 
-    if data not in duration_map:
-        await call.answer("❌ Неизвестный тариф")
-        return
-
-    success = await set_user_access(user_id, duration_map[data], data)
-
-    if not success:
-        await call.answer("❌ Ошибка сохранения тарифа")
-        return
+        if not success:
+            await call.answer("❌ Ошибка сохранения тарифа")
+            return
     
     if data == "self":
         await call.message.answer("📅 Выберите год вашего выхода на пенсию:", reply_markup=get_self_years_keyboard())
@@ -535,7 +529,7 @@ async def parse_kaspi_receipt(pdf_path: str):
 
 @dp.message(F.document, F.chat.type == ChatType.PRIVATE)
 async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
-    global dp_pool
+    global db_pool
     logging.info(f"Получен документ: {message.document.file_name}")
     user = message.from_user
 
@@ -543,62 +537,35 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
 
     if not tariff:
         return await message.answer("❌ Сначала выберите уровень доступа!")
-    
+
     if not message.document.mime_type == 'application/pdf':
         return await message.answer("❌ Пожалуйста, отправьте PDF-файл чека из Kaspi")
 
-    file_id = message.document.file_id
-    if await check_duplicate_file(file_id):
+    if await check_duplicate_file(message.document.file_id):
         return await message.answer("❌ Этот чек уже был загружен ранее")
-  
-    file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
-    await bot.download(file=await bot.get_file(file_id), destination=file_path)
 
+    file_path = os.path.join(RECEIPT_DIR, f"{user.id}_{message.document.file_name}")
+    await bot.download(file=await bot.get_file(message.document.file_id), destination=file_path)
     receipt_data = await parse_kaspi_receipt(file_path)
     
     if not receipt_data:
         return await message.answer("❌ Не удалось прочитать чек. Убедитесь, что отправлен корректный файл.")
-  
-    required_fields = ["amount", "check_number", "fp", "date_time", "iin", "buyer_name"]
-    missing_fields = [field for field in required_fields if receipt_data.get(field) is None]
-    
-    if missing_fields:
-        return await message.answer(
-            f"❌ В чеке отсутствуют обязательные данные: {', '.join(missing_fields)}.\n"
-            "Убедитесь, что чек содержит всю необходимую информацию."
-        )
-    
+
     try:
         date_time = datetime.strptime(receipt_data["date_time"], "%d.%m.%Y %H:%M")
     except ValueError as e:
         return await message.answer(f"❌ Ошибка в формате даты чека: {e}")
 
-    await message.answer(
-        f"📄 Данные чека:\n"
-        f"ИИН: {receipt_data['iin']}\n"
-        f"Сумма: {receipt_data['amount']}\n"
-        f"Номер чека: {receipt_data['check_number']}\n"
-        f"Дата: {receipt_data['date_time']}"
-    )
-    
-    expire_time, tariff = await get_user_access(user.id)
     required_amounts = {
-        "self": 10000,
+        "self": 100,
         "basic": 50000,
         "pro": 250000,
-        "2025": 100,
-        "2026": 10000,
-        "2027": 10000,
-        "2028": 10000,
-        "2029": 10000,
-        "2030": 10000,
-        "2031": 10000
+        **{str(y): 10000 for y in range(2025, 2032)}  
     }
 
     errors = []
     if receipt_data["iin"] != "620613400018":
         errors.append("ИИН продавца не совпадает")
-        
     if receipt_data["amount"] != required_amounts.get(tariff, 0):
         errors.append(f"Сумма не соответствует тарифу {tariff}")
 
@@ -612,32 +579,36 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         fp=receipt_data["fp"],
         date_time=date_time,
         buyer_name=receipt_data["buyer_name"],
-        file_id=file_id
+        file_id=message.document.file_id
     ):
         return await message.answer("❌ Ошибка при сохранении чека")
 
-    if tariff in ["self", "basic", "pro"] + [str(y) for y in range(2025, 2032)]:
-        duration = {
-            "self": 7,
-            "basic": 30,
-            "pro": 60,
-            **{str(y): 7 for y in range(2025, 2032)}
-        }.get(tariff, 7) * 86400
+    duration_map = {
+        "self": 7,
+        "basic": 30,
+        "pro": 60,
+        **{str(y): 7 for y in range(2025, 2032)}
+    }
+    
+    duration_days = duration_map.get(tariff, 7)
+    await set_user_access(
+        user_id=user.id,
+        duration_days=duration_days,
+        tariff=tariff
+    )
 
-        await set_user_access(user.id, duration, tariff)
-        await message.answer(
-            f"✅ Доступ уровня {tariff.upper()} активирован на {duration//86400} дней!",
-            reply_markup=await get_materials_keyboard(message.from_user.id, db_pool, bot)
-        )
+    await message.answer(
+        f"✅ Доступ уровня {tariff.upper()} активирован на {duration_days} дней!",
+        reply_markup=await get_materials_keyboard(user.id, db_pool, bot)
+    )
 
     info = (
         f"📄 Фискальный чек от пользователя:\n"
         f"🆔 ID: {user.id}\n"
         f"👤 Username: @{user.username or 'Без username'}\n"
-        f"💳 Уровень: {tariff.upper() if tariff else 'не выбран'}\n"
+        f"💳 Уровень: {tariff.upper()}\n"
         f"📝 Файл: {message.document.file_name}"
     )
-    
     await bot.send_message(ADMIN_ID, info)
     await bot.send_document(ADMIN_ID, message.document.file_id)
     
