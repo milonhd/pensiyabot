@@ -58,9 +58,9 @@ def setup_reviews(dp, bot, pool):
     register_reviews_handlers(dp, bot, pool)
 
 main_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔹 Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
-    [InlineKeyboardButton(text="🔸 Уровень БАЗОВЫЙ", callback_data="basic")],
-    [InlineKeyboardButton(text="❌ Уровень ПРО", callback_data="pro")],
+    [InlineKeyboardButton(text="Уровень САМОСТОЯТЕЛЬНЫЙ", callback_data="self")],
+    [InlineKeyboardButton(text="Уровень БАЗОВЫЙ", callback_data="basic")],
+    [InlineKeyboardButton(text="Уровень ПРО", callback_data="pro")],
 ])
 
 async def get_materials_keyboard(user_id, pool, bot: Bot):
@@ -186,10 +186,10 @@ async def grant_access(message: types.Message):
         tariff = args[2].lower()
 
         duration_map = {
-            "self": 7,
-            "basic": 30,
-            "pro": 60,
-            **{str(year): 7 for year in range(2025, 2032)} 
+            "self": 15,
+            "basic": 60,
+            "pro": 180,
+            **{str(year): 15 for year in range(2025, 2032)} 
         }
 
         if tariff not in duration_map:
@@ -368,9 +368,9 @@ async def handle_year_selection(call: types.CallbackQuery):
 ✔️ Инструкции: что проверить, где взять данные, как не упустить важное
 ✔️ Конечный продукт с расчетом вашей пенсии
 
-⏰ Доступ: 7 дней
+⏰ Доступ: 15 дней
 💬 Вопросы — в общем чате можно задавать вопросы по заполнению таблицы
-💳 Стоимость: 10 000 ₸
+💳 Стоимость: 15 000 ₸
 
 👇 Нажмите «✅ Оплатить», чтобы перейти к реквизитам.
 """
@@ -443,9 +443,9 @@ async def handle_callback(call: types.CallbackQuery):
 – планирует помогать другим (как консультант или помощник)
 – не хочет тратить время на самостоятельное изучение всех нюансов
 
-⏰ Доступ: 30 дней
+⏰ Доступ: 60 дней
 💬 Поддержка: вопрос-ответ в общем чате
-💳 Стоимость: 50 000 ₸
+💳 Стоимость: 100 000 ₸
 
 👇 Нажмите «✅ Оплатить», чтобы перейти к реквизитам.
         """,
@@ -575,10 +575,10 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         errors.append("ИИН продавца не совпадает")
     
     required_amounts = {
-        "self": 10000,
-        "basic": 50000,
+        "self": 15000,
+        "basic": 100000,
         "pro": 250000,
-        **{str(y): 100 for y in range(2025, 2032)}
+        **{str(y): 15000 for y in range(2025, 2032)}
     }
     
     if receipt_data.get("amount") != required_amounts.get(tariff, 0):
@@ -610,10 +610,10 @@ async def handle_document(message: types.Message, state: FSMContext, bot: Bot):
         return await message.answer("❌ Ошибка при сохранении чека")
 
     duration_map = {
-        "self": 7,
-        "basic": 30,
-        "pro": 60,
-        **{str(y): 7 for y in range(2025, 2032)}
+        "self": 15,
+        "basic": 60,
+        "pro": 180,
+        **{str(y): 15 for y in range(2025, 2032)}
     }
     
     duration_days = duration_map.get(tariff, 7)
@@ -689,19 +689,6 @@ async def check_access_periodically():
             logging.error(f"Ошибка в проверке доступа: {e}")
 
         await asyncio.sleep(10)
-
-async def check_subscriptions():
-    while True:
-        users = await get_all_active_users()
-        for user_id, expire_time_ts, _, _ in users:  
-            expire_time = datetime.fromtimestamp(expire_time_ts)
-            if (expire_time - datetime.now()).total_seconds() < 86400 * 3:
-                await bot.send_message(
-                    user_id,
-                    "⚠️ Ваш доступ истекает через 3 дня!",
-                    reply_markup=main_keyboard
-                )
-        await asyncio.sleep(3600)
 
 @dp.message(F.text == "📝 Отзывы", F.chat.type == ChatType.PRIVATE)
 async def handle_reviews_button(message: types.Message):
